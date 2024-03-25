@@ -1,0 +1,6 @@
+(ocamllex lexer)
+(menhir (modules parser))
+
+(library
+ (name javascript)
+ (modules lexer parser ast))
