@@ -28,11 +28,13 @@ rule lexer = parse
   | ')' { RPAREN }
   | '{' { LBRACE }
   | '}' { RBRACE }
+  | ',' { COMMA }
   | '+' { PLUS }
   | '-' { MINUS }
   | '*' { TIMES }
   | '/' { DIV }
   | '!' { BANG }
+  | "function" { FUNCTION }
   | eol { incr_lineno lexbuf; lexer lexbuf }
   | ws+ { lexer lexbuf }
   | int { INT (int_of_string(Lexing.lexeme lexbuf)) }

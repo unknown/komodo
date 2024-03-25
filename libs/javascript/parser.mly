@@ -10,9 +10,10 @@ open Ast
 /* terminals */
 %token <int> INT
 %token <string> ID
-%token SEMI LPAREN RPAREN LBRACE RBRACE
+%token SEMI LPAREN RPAREN LBRACE RBRACE COMMA
 %token PLUS MINUS TIMES DIV
 %token BANG
+%token FUNCTION
 %token EOF
 
 %left PLUS MINUS
@@ -26,10 +27,21 @@ program:
 
 stmt:
   exp SEMI { Exp $1 }
+  | func { $1 }
 
 stmts:
   stmt { $1 }
   | stmt stmts { Seq ($1, $2) }
+
+func:
+  FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn{name=$2;args=$4;body=$7} }
+
+param:
+  ID { $1 }
+
+params:
+  param { [$1] }
+  | param COMMA params { $1::$3 }
 
 exp:
   ID { Var $1 }
@@ -37,6 +49,12 @@ exp:
   | unop exp %prec UNOP { Unop ($1, $2) }
   | exp binop exp { Binop ($2, $1, $3) }
   | LPAREN exp RPAREN { $2 }
+  | exp LPAREN RPAREN { Call($1, []) }
+  | exp LPAREN exps RPAREN { Call($1, $3) }
+
+exps:
+  exp { [$1] }
+  | exp COMMA exps { $1::$3 }
 
 %inline unop:
   MINUS { UMinus }
