@@ -36,12 +36,14 @@ and string_of_exps (es : exp list) =
   | e :: [] -> string_of_exp e
   | e :: es -> string_of_exp e ^ "," ^ string_of_exps es
 
-let rec string_of_stmt (s : stmt) : string =
+let rec string_of_stmt (s : stmt) (level : int) : string =
+  let tabs = String.make (level * 2) ' ' in
   match s with
-  | Exp e -> string_of_exp e ^ ";\n"
-  | Seq (s1, s2) -> string_of_stmt s1 ^ string_of_stmt s2
+  | Exp e -> tabs ^ string_of_exp e ^ ";\n"
+  | Seq (s1, s2) -> string_of_stmt s1 level ^ string_of_stmt s2 level
   | Fn f ->
-      "function " ^ f.name ^ "(" ^ String.concat "," f.args ^ ") {\n"
-      ^ string_of_stmt f.body ^ "}\n"
+      tabs ^ "function " ^ f.name ^ "(" ^ String.concat "," f.args ^ ") {\n"
+      ^ string_of_stmt f.body (level + 1)
+      ^ tabs ^ "}\n"
 
-let string_of_program (p : program) : string = string_of_stmt p
+let string_of_program (p : program) : string = string_of_stmt p 0
