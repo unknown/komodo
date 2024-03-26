@@ -73,13 +73,10 @@ let rec string_of_exp (e : exp) : string =
   | Call (e, es) -> string_of_exp e ^ "(" ^ string_of_exps es ^ ")"
 
 and string_of_exps (es : exp list) =
-  match es with
-  | [] -> ""
-  | e :: [] -> string_of_exp e
-  | e :: es -> string_of_exp e ^ "," ^ string_of_exps es
+  String.concat ", " (List.map string_of_exp es)
 
 let rec string_of_stmt (s : stmt) (level : int) : string =
-  let tabs = String.make (level * 2) ' ' in
+  let tabs = String.make (level * 4) ' ' in
   match s with
   | Exp e -> tabs ^ string_of_exp e ^ ";\n"
   | Seq (e1, e2) -> string_of_stmt e1 level ^ string_of_stmt e2 level
@@ -106,7 +103,7 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
 let string_of_func (fn : func) : string =
   let (Fn f) = fn in
   string_of_def f.def ^ "("
-  ^ String.concat "," (List.map (fun d -> string_of_def d) f.args)
+  ^ String.concat ", " (List.map (fun d -> string_of_def d) f.args)
   ^ ") {\n" ^ string_of_stmt f.body 1 ^ "}\n"
 
 let string_of_program (p : program) : string =
