@@ -12,7 +12,7 @@ let compile_prog (p : Javascript.Ast.program) : C.Ast.program =
   Js_compile.compile_program p
 
 let dump (p : C.Ast.program) =
-  let prog_str = C.Ast.string_of_program p in
+  let prog_str = "#include <stdio.h>\n\n" ^ C.Ast.string_of_program p in
   let _ = print_string prog_str in
   ()
 

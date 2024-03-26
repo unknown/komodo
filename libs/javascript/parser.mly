@@ -14,6 +14,7 @@ open Ast
 %token PLUS MINUS TIMES DIV
 %token BANG
 %token FUNCTION
+%token PRINT
 %token EOF
 
 %left PLUS MINUS
@@ -51,10 +52,14 @@ exp:
   | LPAREN exp RPAREN { $2 }
   | exp LPAREN RPAREN { Call($1, []) }
   | exp LPAREN exps RPAREN { Call($1, $3) }
+  | print { $1 }
 
 exps:
   exp { [$1] }
   | exp COMMA exps { $1::$3 }
+
+print:
+  PRINT LPAREN exp RPAREN { Print $3 }
 
 %inline unop:
   MINUS { UMinus }

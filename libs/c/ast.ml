@@ -20,6 +20,7 @@ type unop = Not
 
 type exp =
   | Int of int
+  | String of string
   | Var of var
   | Binop of binop * exp * exp
   | Unop of unop * exp
@@ -64,6 +65,7 @@ let string_of_unop (u : unop) : string = match u with Not -> "!"
 let rec string_of_exp (e : exp) : string =
   match e with
   | Int i -> string_of_int i
+  | String s -> "\"" ^ s ^ "\""
   | Var x -> x
   | Binop (op, e1, e2) ->
       "(" ^ string_of_exp e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_exp e2

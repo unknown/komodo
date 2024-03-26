@@ -35,6 +35,7 @@ rule lexer = parse
   | '/' { DIV }
   | '!' { BANG }
   | "function" { FUNCTION }
+  | "console.log" { PRINT }
   | eol { incr_lineno lexbuf; lexer lexbuf }
   | ws+ { lexer lexbuf }
   | int { INT (int_of_string(Lexing.lexeme lexbuf)) }

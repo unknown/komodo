@@ -8,6 +8,7 @@ type exp =
   | Binop of binop * exp * exp
   | Unop of unop * exp
   | Call of exp * exp list
+  | Print of exp
 
 type funcsig = { name : var; args : var list; body : stmt }
 and stmt = Exp of exp | Seq of stmt * stmt | Fn of funcsig
@@ -29,6 +30,7 @@ let rec string_of_exp (e : exp) : string =
       ^ ")"
   | Unop (op, e) -> string_of_unop op ^ string_of_exp e
   | Call (e, es) -> string_of_exp e ^ "(" ^ string_of_exps es ^ ")"
+  | Print e -> "console.log(" ^ string_of_exp e ^ ")"
 
 and string_of_exps (es : exp list) =
   String.concat ", " (List.map string_of_exp es)
