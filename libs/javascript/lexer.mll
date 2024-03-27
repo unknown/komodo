@@ -29,11 +29,14 @@ rule lexer = parse
   | '{' { LBRACE }
   | '}' { RBRACE }
   | ',' { COMMA }
+  | '=' { EQUAL }
   | '+' { PLUS }
   | '-' { MINUS }
   | '*' { TIMES }
   | '/' { DIV }
   | '!' { BANG }
+  | "let" { LET }
+  | "const" { CONST }
   | "function" { FUNCTION }
   | "console.log" { PRINT }
   | eol { incr_lineno lexbuf; lexer lexbuf }

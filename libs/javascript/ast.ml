@@ -1,4 +1,5 @@
 type var = string
+type mut = Let | Const
 type binop = Plus | Minus | Times | Div
 type unop = UMinus | Not
 
@@ -11,7 +12,12 @@ type exp =
   | Print of exp
 
 type funcsig = { name : var; args : var list; body : stmt }
-and stmt = Exp of exp | Seq of stmt * stmt | Fn of funcsig
+
+and stmt =
+  | Exp of exp
+  | Seq of stmt * stmt
+  | Fn of funcsig
+  | Decl of mut * var * exp * stmt
 
 type program = stmt
 
@@ -35,6 +41,9 @@ let rec string_of_exp (e : exp) : string =
 and string_of_exps (es : exp list) =
   String.concat ", " (List.map string_of_exp es)
 
+let string_of_mut (m : mut) : string =
+  match m with Let -> "let" | Const -> "const"
+
 let rec string_of_stmt (s : stmt) (level : int) : string =
   let tabs = String.make (level * 2) ' ' in
   match s with
@@ -44,5 +53,8 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
       tabs ^ "function " ^ f.name ^ "(" ^ String.concat ", " f.args ^ ") {\n"
       ^ string_of_stmt f.body (level + 1)
       ^ tabs ^ "}\n"
+  | Decl (m, x, e, s) ->
+      tabs ^ string_of_mut m ^ " " ^ x ^ " = " ^ string_of_exp e ^ ";\n"
+      ^ string_of_stmt s level
 
 let string_of_program (p : program) : string = string_of_stmt p 0

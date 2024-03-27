@@ -100,7 +100,7 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
   | Return e -> tabs ^ "return " ^ string_of_exp e ^ ";\n"
   | Decl (d, e, s) ->
       tabs ^ string_of_def d ^ " = " ^ string_of_exp e ^ ";\n"
-      ^ string_of_stmt s (level + 1)
+      ^ string_of_stmt s level
 
 let string_of_func (fn : func) : string =
   let (Fn f) = fn in

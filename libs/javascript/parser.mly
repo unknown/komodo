@@ -10,9 +10,10 @@ open Ast
 /* terminals */
 %token <int> INT
 %token <string> ID
-%token SEMI LPAREN RPAREN LBRACE RBRACE COMMA
+%token SEMI LPAREN RPAREN LBRACE RBRACE COMMA EQUAL
 %token PLUS MINUS TIMES DIV
 %token BANG
+%token LET CONST
 %token FUNCTION
 %token PRINT
 %token EOF
@@ -28,6 +29,8 @@ program:
 
 stmt:
   exp SEMI { Exp $1 }
+  | LET ID EQUAL exp SEMI stmts { Decl (Let, $2, $4, $6) }
+  | CONST ID EQUAL exp SEMI stmts { Decl (Const, $2, $4, $6) }
   | func { $1 }
 
 stmts:
@@ -35,7 +38,7 @@ stmts:
   | stmt stmts { Seq ($1, $2) }
 
 func:
-  FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn{name=$2;args=$4;body=$7} }
+  FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn { name = $2; args = $4; body = $7 } }
 
 param:
   ID { $1 }
