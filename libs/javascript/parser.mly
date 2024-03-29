@@ -52,6 +52,7 @@ exp:
   | INT { Int $1 }
   | unop exp %prec UNOP { Unop ($1, $2) }
   | exp binop exp { Binop ($2, $1, $3) }
+  | exp EQUAL exp { Assign ($1, $3) }
   | LPAREN exp RPAREN { $2 }
   | exp LPAREN RPAREN { Call($1, []) }
   | exp LPAREN exps RPAREN { Call($1, $3) }

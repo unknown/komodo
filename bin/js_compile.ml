@@ -14,6 +14,7 @@ let rec exp2exp (e : Javascript.Ast.exp) : C.Ast.exp =
   | Var x -> Var x
   | Binop (op, e1, e2) -> Binop (binop2binop op, exp2exp e1, exp2exp e2)
   | Unop (op, e) -> Unop (unop2unop op, exp2exp e)
+  | Assign (x, e) -> Assign (exp2exp x, exp2exp e)
   | Call (e, es) -> Call (exp2exp e, List.map exp2exp es)
   | Print e -> Call (Var "printf", [ String "%d\\n"; exp2exp e ])
 

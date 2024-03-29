@@ -24,7 +24,7 @@ type exp =
   | Var of var
   | Binop of binop * exp * exp
   | Unop of unop * exp
-  | Assign of var * exp
+  | Assign of exp * exp
   | Call of exp * exp list
 
 type stmt =
@@ -71,7 +71,7 @@ let rec string_of_exp (e : exp) : string =
       "(" ^ string_of_exp e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_exp e2
       ^ ")"
   | Unop (op, e) -> string_of_unop op ^ string_of_exp e
-  | Assign (x, e) -> x ^ " = " ^ string_of_exp e
+  | Assign (x, e) -> string_of_exp x ^ " = " ^ string_of_exp e
   | Call (e, es) -> string_of_exp e ^ "(" ^ string_of_exps es ^ ")"
 
 and string_of_exps (es : exp list) =
