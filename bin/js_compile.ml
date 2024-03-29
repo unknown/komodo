@@ -26,6 +26,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) : C.Ast.stmt =
       let args = List.map (fun arg -> ("int", arg)) f.args in
       let _ = stmt2fun f.body ("int", f.name) args in
       C.Ast.skip
+  | Return e -> Return (exp2exp e)
   | Decl (m, x, e, s) ->
       let typ = match m with Let -> "int" | Const -> "const int" in
       Decl ((typ, x), exp2exp e, stmt2stmt s)

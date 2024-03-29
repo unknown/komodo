@@ -35,6 +35,7 @@ rule lexer = parse
   | '*' { TIMES }
   | '/' { DIV }
   | '!' { BANG }
+  | "return" { RETURN }
   | "let" { LET }
   | "const" { CONST }
   | "function" { FUNCTION }

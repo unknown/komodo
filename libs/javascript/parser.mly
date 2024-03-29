@@ -13,6 +13,7 @@ open Ast
 %token SEMI LPAREN RPAREN LBRACE RBRACE COMMA EQUAL
 %token PLUS MINUS TIMES DIV
 %token BANG
+%token RETURN
 %token LET CONST
 %token FUNCTION
 %token PRINT
@@ -29,16 +30,14 @@ program:
 
 stmt:
   exp SEMI { Exp $1 }
+  | RETURN exp SEMI { Return $2 }
   | LET ID EQUAL exp SEMI stmts { Decl (Let, $2, $4, $6) }
   | CONST ID EQUAL exp SEMI stmts { Decl (Const, $2, $4, $6) }
-  | func { $1 }
+  | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn { name = $2; args = $4; body = $7 } }
 
 stmts:
   stmt { $1 }
   | stmt stmts { Seq ($1, $2) }
-
-func:
-  FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn { name = $2; args = $4; body = $7 } }
 
 param:
   ID { $1 }

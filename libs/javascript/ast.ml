@@ -18,6 +18,7 @@ and stmt =
   | Exp of exp
   | Seq of stmt * stmt
   | Fn of funcsig
+  | Return of exp
   | Decl of mut * var * exp * stmt
 
 type program = stmt
@@ -55,6 +56,7 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
       tabs ^ "function " ^ f.name ^ "(" ^ String.concat ", " f.args ^ ") {\n"
       ^ string_of_stmt f.body (level + 1)
       ^ tabs ^ "}\n"
+  | Return e -> tabs ^ "return " ^ string_of_exp e ^ ";\n"
   | Decl (m, x, e, s) ->
       tabs ^ string_of_mut m ^ " " ^ x ^ " = " ^ string_of_exp e ^ ";\n"
       ^ string_of_stmt s level
