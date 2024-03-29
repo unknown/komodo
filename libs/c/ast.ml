@@ -22,6 +22,7 @@ type exp =
   | Int of int
   | String of string
   | Var of var
+  | Seq of exp * exp
   | Binop of binop * exp * exp
   | Unop of unop * exp
   | Assign of exp * exp
@@ -67,6 +68,7 @@ let rec string_of_exp (e : exp) : string =
   | Int i -> string_of_int i
   | String s -> "\"" ^ s ^ "\""
   | Var x -> x
+  | Seq (e1, e2) -> string_of_exp e1 ^ ", " ^ string_of_exp e2
   | Binop (op, e1, e2) ->
       "(" ^ string_of_exp e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_exp e2
       ^ ")"

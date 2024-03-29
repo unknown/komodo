@@ -12,6 +12,7 @@ let rec exp2exp (e : Javascript.Ast.exp) : C.Ast.exp =
   match e with
   | Int i -> Int i
   | Var x -> Var x
+  | Seq (e1, e2) -> Seq (exp2exp e1, exp2exp e2)
   | Binop (op, e1, e2) -> Binop (binop2binop op, exp2exp e1, exp2exp e2)
   | Unop (op, e) -> Unop (unop2unop op, exp2exp e)
   | Assign (x, e) -> Assign (exp2exp x, exp2exp e)
