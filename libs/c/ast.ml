@@ -15,8 +15,10 @@ type binop =
   | Gte
   | And
   | Or
+  | Arrow
+  | Dot
 
-type unop = Not
+type unop = Not | Deref | AddrOf
 
 type exp =
   | Int of int
@@ -48,20 +50,23 @@ let string_of_def ((t, x) : def) : string = t ^ " " ^ x
 
 let string_of_binop (b : binop) : string =
   match b with
-  | Plus -> "+"
-  | Minus -> "-"
-  | Times -> "*"
-  | Div -> "/"
-  | Eq -> "=="
-  | Neq -> "!="
-  | Lt -> "<"
-  | Lte -> "<="
-  | Gt -> ">"
-  | Gte -> ">="
-  | And -> "&&"
-  | Or -> "||"
+  | Plus -> " + "
+  | Minus -> " - "
+  | Times -> " * "
+  | Div -> " / "
+  | Eq -> " == "
+  | Neq -> " != "
+  | Lt -> " < "
+  | Lte -> " <= "
+  | Gt -> " > "
+  | Gte -> " >= "
+  | And -> " && "
+  | Or -> " || "
+  | Arrow -> "->"
+  | Dot -> "."
 
-let string_of_unop (u : unop) : string = match u with Not -> "!"
+let string_of_unop (u : unop) : string =
+  match u with Not -> "!" | Deref -> "*" | AddrOf -> "&"
 
 let rec string_of_exp (e : exp) : string =
   match e with
@@ -70,8 +75,7 @@ let rec string_of_exp (e : exp) : string =
   | Var x -> x
   | Seq (e1, e2) -> string_of_exp e1 ^ ", " ^ string_of_exp e2
   | Binop (op, e1, e2) ->
-      "(" ^ string_of_exp e1 ^ " " ^ string_of_binop op ^ " " ^ string_of_exp e2
-      ^ ")"
+      "(" ^ string_of_exp e1 ^ string_of_binop op ^ string_of_exp e2 ^ ")"
   | Unop (op, e) -> string_of_unop op ^ string_of_exp e
   | Assign (x, e) -> string_of_exp x ^ " = " ^ string_of_exp e
   | Call (e, es) -> string_of_exp e ^ "(" ^ string_of_exps es ^ ")"
