@@ -61,6 +61,8 @@ def test_js(file_path):
 
 
 def main():
+    verbose = True
+
     if len(sys.argv) != 2:
         print("Usage: python test.py <test-file>")
         exit(1)
@@ -74,10 +76,12 @@ def main():
 
     if output == expected_output:
         print(f"[✓] Test passed: {test_file}")
+        if verbose:
+            print(f"Output:\n{output}")
     else:
         print(f"[✗] Test failed: {test_file}")
-        print(f"Output: {output}")
-        print(f"Expected output: {expected_output}")
+        print(f"Output:\n{output}")
+        print(f"Expected output:\n{expected_output}")
 
 
 if __name__ == "__main__":
