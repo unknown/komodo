@@ -18,7 +18,7 @@ type binop =
   | Arrow
   | Dot
 
-type unop = Not | Deref | AddrOf
+type unop = Not | Deref | AddrOf | Cast of typ
 
 type exp =
   | Int of int
@@ -66,7 +66,11 @@ let string_of_binop (b : binop) : string =
   | Dot -> "."
 
 let string_of_unop (u : unop) : string =
-  match u with Not -> "!" | Deref -> "*" | AddrOf -> "&"
+  match u with
+  | Not -> "!"
+  | Deref -> "*"
+  | AddrOf -> "&"
+  | Cast t -> "(" ^ t ^ ") "
 
 let rec string_of_exp (e : exp) : string =
   match e with
