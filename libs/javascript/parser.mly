@@ -49,7 +49,7 @@ params:
 exp:
   ID { Var $1 }
   | INT { Int $1 }
-  | exp COMMA exp { Seq($1, $3) }
+  // | exp COMMA exp { ExpSeq($1, $3) }
   | unop exp %prec UNOP { Unop ($1, $2) }
   | exp binop exp { Binop ($2, $1, $3) }
   | exp EQUAL exp { Assign ($1, $3) }

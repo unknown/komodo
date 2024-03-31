@@ -1,2 +1,4 @@
 let a = 1;
-a = 2;
+a = a * 2;
+const b = a * 4;
+console.log(a - b);

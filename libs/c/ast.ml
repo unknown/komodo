@@ -24,7 +24,7 @@ type exp =
   | Int of int
   | String of string
   | Var of var
-  | Seq of exp * exp
+  | ExpSeq of exp * exp
   | Binop of binop * exp * exp
   | Unop of unop * exp
   | Assign of exp * exp
@@ -37,7 +37,7 @@ type stmt =
   | While of exp * stmt
   | For of exp * exp * exp * stmt
   | Return of exp
-  | Decl of def * exp * stmt
+  | Decl of def * exp option * stmt
 
 type funcsig = { def : def; args : def list; body : stmt }
 type func = Fn of funcsig
@@ -77,7 +77,7 @@ let rec string_of_exp (e : exp) : string =
   | Int i -> string_of_int i
   | String s -> "\"" ^ s ^ "\""
   | Var x -> x
-  | Seq (e1, e2) -> string_of_exp e1 ^ ", " ^ string_of_exp e2
+  | ExpSeq (e1, e2) -> string_of_exp e1 ^ ", " ^ string_of_exp e2
   | Binop (op, e1, e2) ->
       "(" ^ string_of_exp e1 ^ string_of_binop op ^ string_of_exp e2 ^ ")"
   | Unop (op, e) -> string_of_unop op ^ string_of_exp e
@@ -109,8 +109,8 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
       ^ tabs ^ "}\n"
   | Return e -> tabs ^ "return " ^ string_of_exp e ^ ";\n"
   | Decl (d, e, s) ->
-      tabs ^ string_of_def d ^ " = " ^ string_of_exp e ^ ";\n"
-      ^ string_of_stmt s level
+      let v = match e with Some e -> " = " ^ string_of_exp e | None -> "" in
+      tabs ^ string_of_def d ^ v ^ ";\n" ^ string_of_stmt s level
 
 let string_of_func (fn : func) : string =
   let (Fn f) = fn in
