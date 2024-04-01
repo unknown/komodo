@@ -15,20 +15,20 @@ let dump (p : Js_compile.program) =
   let prog_str =
     "#include <stdio.h>\n\
      #include <stdlib.h>\n\n\
-     struct Value {\n\
+     union Value {\n\
     \    int num;\n\
     \    int* numPtr;\n\
     \    struct Closure* closurePtr;\n\
      };\n\n\
      struct Variable {\n\
-    \    struct Value value;\n\
+    \    union Value value;\n\
     \    struct Variable *next;\n\
      };\n\n\
      struct Environment {\n\
     \    struct Variable *variablesHead;\n\
      };\n\n\
      struct Closure {\n\
-    \  struct Value* (*func)(struct Environment*);\n\
+    \  union Value* (*func)(struct Environment*);\n\
     \  struct Environment *env;\n\
      };\n\n"
     ^ String.concat "\n"

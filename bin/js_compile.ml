@@ -69,7 +69,8 @@ let binop2binop (b : Javascript.Ast.binop) : C.Ast.binop =
 let unop2unop (u : Javascript.Ast.unop) : C.Ast.unop =
   match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
 
-let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
+let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
+    =
   match e with
   | Int i -> Exp (Assign (result_num, Int i))
   | Var x -> (
@@ -80,33 +81,30 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
           | Some closure ->
               Exp (Assign (result_closure_ptr, Unop (AddrOf, closure)))
           | None ->
-              let store_num : C.Ast.stmt = Exp (Assign (result_num, Var x)) in
-              let store_num_ptr : C.Ast.stmt =
-                Exp (Assign (result_num_ptr, Unop (AddrOf, Var x)))
-              in
-              seq_stmts [ store_num; store_num_ptr ]))
+              if left then Exp (Assign (result_num_ptr, Unop (AddrOf, Var x)))
+              else Exp (Assign (result_num, Var x))))
   | ExpSeq (e1, e2) ->
-      let s1 = exp2stmt e1 env in
-      let s2 = exp2stmt e2 env in
+      let s1 = exp2stmt e1 env left in
+      let s2 = exp2stmt e2 env left in
       seq_stmts [ s1; s2 ]
   | Binop (op, e1, e2) ->
       let t = new_temp () in
-      let v1 = exp2stmt e1 env in
+      let v1 = exp2stmt e1 env left in
       let store_v1 : C.Ast.stmt = Exp (Assign (Var t, result_num)) in
-      let v2 = exp2stmt e2 env in
+      let v2 = exp2stmt e2 env left in
       let eval : C.Ast.exp = Binop (binop2binop op, Var t, result_num) in
       let store_result : C.Ast.stmt = Exp (Assign (result_num, eval)) in
       Decl (("int", t), None, seq_stmts [ v1; store_v1; v2; store_result ])
   | Unop (op, e) ->
-      let v = exp2stmt e env in
+      let v = exp2stmt e env left in
       let eval : C.Ast.exp = Unop (unop2unop op, result_num) in
       let store_result : C.Ast.stmt = Exp (Assign (result_num, eval)) in
       seq_stmts [ v; store_result ]
   | Assign (x, e) ->
       let t = new_temp () in
-      let vx = exp2stmt x env in
+      let vx = exp2stmt x env true in
       let store_vx : C.Ast.stmt = Exp (Assign (Var t, result_num_ptr)) in
-      let ve = exp2stmt e env in
+      let ve = exp2stmt e env left in
       let assign : C.Ast.stmt =
         Exp (Assign (Unop (Deref, Var t), result_num))
       in
@@ -123,7 +121,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
             let malloc : C.Ast.stmt =
               Exp (Assign (Var t, malloc "struct Variable"))
             in
-            let v = exp2stmt hd env in
+            let v = exp2stmt hd env left in
             let store_v : C.Ast.stmt =
               Exp
                 (Assign
@@ -148,7 +146,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
                   [ malloc; v; store_v; store_next; store_head; rest; free_var ]
               )
       in
-      let v = exp2stmt e env in
+      let v = exp2stmt e env left in
       let store_closure : C.Ast.stmt =
         Exp (Assign (Var t1, result_closure_ptr))
       in
@@ -176,7 +174,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
               seq_stmts [ v; store_closure; save_env; call_with_args; free_env ]
             ) )
   | Print e ->
-      let v = exp2stmt e env in
+      let v = exp2stmt e env left in
       let print : C.Ast.stmt =
         Exp (Call (Var "printf", [ String "%d\\n"; result_num ]))
       in
@@ -184,7 +182,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) : C.Ast.stmt =
 
 let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
   match s with
-  | Exp e -> exp2stmt e env
+  | Exp e -> exp2stmt e env false
   | Seq (s1, s2) ->
       let s1' = stmt2stmt s1 env in
       let s2' = stmt2stmt s2 env in
@@ -198,7 +196,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let t = new_temp () in
       let env' = List.fold_right (fun arg env -> arg :: env) f.args env in
       let _ =
-        stmt2fun f.body ("struct Value*", t)
+        stmt2fun f.body ("union Value*", t)
           [ ("struct Environment*", "env") ]
           env'
       in
@@ -210,12 +208,12 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       in
       seq_stmts [ store_func; store_env ]
   | Return e ->
-      let v = exp2stmt e env in
+      let v = exp2stmt e env false in
       let return : C.Ast.stmt = Return (Var "result") in
       seq_stmts [ v; return ]
   | Decl (m, x, e, s) ->
       let typ = match m with Let -> "int" | Const -> "const int" in
-      let v = exp2stmt e env in
+      let v = exp2stmt e env false in
       let decl : C.Ast.stmt =
         Decl ((typ, x), Some result_num, stmt2stmt s env)
       in
@@ -229,8 +227,8 @@ and stmt2fun (s : Javascript.Ast.stmt) (def : C.Ast.def) (args : C.Ast.def list)
       Decl
         ( ("struct Environment*", "env"),
           Some (malloc "struct Environment"),
-          Decl (("struct Value*", "result"), Some (malloc "struct Value"), s) )
-    else Decl (("struct Value*", "result"), Some (malloc "struct Value"), s)
+          Decl (("union Value*", "result"), Some (malloc "union Value"), s) )
+    else Decl (("union Value*", "result"), Some (malloc "union Value"), s)
   in
   let return : C.Ast.stmt =
     if name = "main" then Return (Int 0) else Return (Var "result")
