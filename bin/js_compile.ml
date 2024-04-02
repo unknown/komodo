@@ -75,14 +75,20 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
   | Int i -> Exp (Assign (result_num, Int i))
   | Var x -> (
       match lookup_arg env x with
-      | Some index -> Exp (Assign (Unop (Deref, Var "result"), get_arg index))
+      | Some index ->
+          if left then
+            Exp
+              (Assign (result_num_ptr, Binop (Dot, get_arg index, Var "numPtr")))
+          else
+            Exp
+              (Assign
+                 ( result_num,
+                   Unop (Deref, Binop (Dot, get_arg index, Var "numPtr")) ))
       | None -> (
           match lookup_closure x with
           | Some closure ->
               Exp (Assign (result_closure_ptr, Unop (AddrOf, closure)))
-          | None ->
-              if left then Exp (Assign (result_num_ptr, Unop (AddrOf, Var x)))
-              else Exp (Assign (result_num, Var x))))
+          | None -> raise (Compile_error ("Unbound variable: " ^ x))))
   | ExpSeq (e1, e2) ->
       let s1 = exp2stmt e1 env left in
       let s2 = exp2stmt e2 env left in
@@ -117,34 +123,55 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
         match args with
         | [] -> s
         | hd :: tl ->
-            let t = new_temp () in
-            let malloc : C.Ast.stmt =
-              Exp (Assign (Var t, malloc "struct Variable"))
+            let typ = "int" in
+            let t3 = new_temp () in
+            let t4 = new_temp () in
+
+            let malloc_var : C.Ast.stmt =
+              Exp (Assign (Var t3, malloc "struct Variable"))
             in
+
             let v = exp2stmt hd env left in
-            let store_v : C.Ast.stmt =
+            let store_result : C.Ast.stmt = Exp (Assign (Var t4, result_num)) in
+
+            let assign_var : C.Ast.stmt =
               Exp
                 (Assign
-                   ( Binop (Arrow, Var t, Var "value"),
-                     Unop (Deref, Var "result") ))
+                   ( Binop
+                       (Dot, Binop (Arrow, Var t3, Var "value"), Var "numPtr"),
+                     Unop (AddrOf, Var t4) ))
             in
             let store_next : C.Ast.stmt =
               Exp
                 (Assign
-                   ( Binop (Arrow, Var t, Var "next"),
+                   ( Binop (Arrow, Var t3, Var "next"),
                      Binop (Arrow, Var t2, Var "variablesHead") ))
             in
             let store_head : C.Ast.stmt =
-              Exp (Assign (Binop (Arrow, Var t2, Var "variablesHead"), Var t))
+              Exp (Assign (Binop (Arrow, Var t2, Var "variablesHead"), Var t3))
             in
-            let free_var : C.Ast.stmt = free (Var t) in
+
             let rest : C.Ast.stmt = compile_call tl s in
+
+            let free_var : C.Ast.stmt = free (Var t3) in
+
             Decl
-              ( ("struct Variable*", t),
+              ( ("struct Variable*", t3),
                 Some (Int 0),
-                seq_stmts
-                  [ malloc; v; store_v; store_next; store_head; rest; free_var ]
-              )
+                Decl
+                  ( (typ, t4),
+                    None,
+                    seq_stmts
+                      [
+                        malloc_var;
+                        v;
+                        store_result;
+                        assign_var;
+                        store_next;
+                        store_head;
+                        rest;
+                        free_var;
+                      ] ) )
       in
       let v = exp2stmt e env left in
       let store_closure : C.Ast.stmt =
@@ -211,13 +238,52 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let v = exp2stmt e env false in
       let return : C.Ast.stmt = Return (Var "result") in
       seq_stmts [ v; return ]
-  | Decl (m, x, e, s) ->
-      let typ = match m with Let -> "int" | Const -> "const int" in
-      let v = exp2stmt e env false in
-      let decl : C.Ast.stmt =
-        Decl ((typ, x), Some result_num, stmt2stmt s env)
+  | Decl (_, x, e, s) ->
+      let typ = "int" in
+      let t1 = new_temp () in
+      let t2 = new_temp () in
+
+      let malloc_var : C.Ast.stmt =
+        Exp (Assign (Var t1, malloc "struct Variable"))
       in
-      seq_stmts [ v; decl ]
+
+      let v = exp2stmt e env false in
+      let store_result : C.Ast.stmt = Exp (Assign (Var t2, result_num)) in
+
+      let assign_var : C.Ast.stmt =
+        Exp
+          (Assign
+             ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "numPtr"),
+               Unop (AddrOf, Var t2) ))
+      in
+      let store_next : C.Ast.stmt =
+        Exp
+          (Assign
+             ( Binop (Arrow, Var t1, Var "next"),
+               Binop (Arrow, Var "env", Var "variablesHead") ))
+      in
+      let store_head : C.Ast.stmt =
+        Exp (Assign (Binop (Arrow, Var "env", Var "variablesHead"), Var t1))
+      in
+
+      let s' = stmt2stmt s (x :: env) in
+
+      Decl
+        ( ("struct Variable*", t1),
+          Some (Int 0),
+          Decl
+            ( (typ, t2),
+              None,
+              seq_stmts
+                [
+                  malloc_var;
+                  v;
+                  store_result;
+                  assign_var;
+                  store_next;
+                  store_head;
+                  s';
+                ] ) )
 
 and stmt2fun (s : Javascript.Ast.stmt) (def : C.Ast.def) (args : C.Ast.def list)
     (env : env) : unit =

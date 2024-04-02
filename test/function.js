@@ -1,13 +1,16 @@
-function f1(a, b) {
-  return f2(a, b) * 8;
-}
-
 function f2(a, b) {
-  function f3(a, b) {
-    return (a + b) * 2;
+  function f3(c, d) {
+    return a * b + c * d;
   }
-  return f3(a, b) * 4;
+
+  a = a * 2;
+  b = b * 2 - a;
+
+  return a * b * f3(a + b, a - b);
 }
 
-const result = f1(1, 2);
-console.log(result);
+function f1(a, b) {
+  return f2(a + 1, b - 1);
+}
+
+console.log(f1(1, 2));
