@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import time
 
 # config
 verbose = True
@@ -36,23 +37,29 @@ def compile_c(input_file_path, output_file_path):
 
 
 def run_compiled(output_file_path):
+    time_start = time.perf_counter()
     run_res = subprocess.run([output_file_path], capture_output=True)
+    time_end = time.perf_counter()
 
     if run_res.returncode != 0:
         raise Exception("Program failed")
 
     output = run_res.stdout.decode()
-    return output
+    duration = time_end - time_start
+    return (output, duration)
 
 
 def run_node(js_file_path):
+    time_start = time.perf_counter()
     run_res = subprocess.run(["node", js_file_path], capture_output=True)
+    time_end = time.perf_counter()
 
     if run_res.returncode != 0:
         raise Exception("Node failed")
 
     output = run_res.stdout.decode()
-    return output
+    duration = time_end - time_start
+    return (output, duration)
 
 
 def test_js(js_file_path):
@@ -63,11 +70,11 @@ def test_js(js_file_path):
 
     compile_js(js_file_path, c_file_path)
     compile_c(c_file_path, output_file_path)
-    output = run_compiled(output_file_path)
+    result = run_compiled(output_file_path)
 
-    expected_output = run_node(js_file_path)
+    expected_result = run_node(js_file_path)
 
-    return (output, expected_output)
+    return (result, expected_result)
 
 
 def main():
@@ -80,11 +87,15 @@ def main():
         print(f"Could not find test file: {js_test_file}")
         exit(1)
 
-    (output, expected_output) = test_js(js_test_file)
+    (result, expected_result) = test_js(js_test_file)
+    (output, komodo_duration) = result
+    (expected_output, node_duration) = expected_result
 
     if output == expected_output:
         print(f"[✓] Test passed: {js_test_file}")
         if verbose:
+            print(f"Time (Komodo): {komodo_duration * 1000:.1f}ms")
+            print(f"Time (Node): {node_duration * 1000:.1f}ms")
             print(f"Output:\n{output}")
     else:
         print(f"[✗] Test failed: {js_test_file}")
