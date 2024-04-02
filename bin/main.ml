@@ -22,14 +22,14 @@ let dump (p : Js_compile.program) =
      };\n\n\
      struct Variable {\n\
     \    union Value value;\n\
-    \    struct Variable *next;\n\
+    \    struct Variable* next;\n\
      };\n\n\
      struct Environment {\n\
     \    struct Variable *variablesHead;\n\
      };\n\n\
      struct Closure {\n\
     \  union Value* (*func)(struct Environment*);\n\
-    \  struct Environment *env;\n\
+    \  struct Environment* env;\n\
      };\n\n"
     ^ String.concat "\n"
         (List.map (fun d -> C.Ast.string_of_def d ^ ";") p.globals)
