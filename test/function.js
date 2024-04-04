@@ -1,5 +1,7 @@
 function f2(a, b) {
   function f3(c, d) {
+    c = c + 1;
+    d = c - 1;
     return a * b + c * d;
   }
 
