@@ -40,6 +40,10 @@ rule lexer = parse
   | '|' { OR }
   | '!' { BANG }
   | "return" { RETURN }
+  | "if" { IF }
+  | "else" { ELSE }
+  | "while" { WHILE }
+  | "for" { FOR }
   | "let" { LET }
   | "const" { CONST }
   | "function" { FUNCTION }

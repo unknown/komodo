@@ -13,7 +13,7 @@ open Ast
 %token SEMI LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COMMA EQUAL
 %token PLUS MINUS TIMES DIV AND OR
 %token BANG
-%token RETURN
+%token RETURN IF ELSE WHILE FOR
 %token LET CONST
 %token FUNCTION
 %token PRINT
@@ -31,7 +31,11 @@ program:
 stmt:
   exp SEMI { Exp $1 }
   | RETURN exp SEMI { Return $2 }
+  | LBRACE stmts RBRACE { $2 }
   | LET ID EQUAL exp SEMI stmts { Decl (Let, $2, $4, $6) }
+  | IF LPAREN exp RPAREN stmt ELSE stmt { If ($3, $5, $7) }
+  | WHILE LPAREN exp RPAREN stmt { While ($3, $5) }
+  // | FOR LPAREN exp SEMI exp SEMI exp RPAREN stmt { For ($3, $5, $7, $9) }
   | CONST ID EQUAL exp SEMI stmts { Decl (Const, $2, $4, $6) }
   | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn { name = $2; args = $4; body = $7 } }
 

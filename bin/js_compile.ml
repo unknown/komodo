@@ -240,6 +240,22 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let s1' = stmt2stmt s1 env in
       let s2' = stmt2stmt s2 env in
       seq_stmts [ s1'; s2' ]
+  | If (e, s1, s2) ->
+      let v = exp2stmt e env false in
+      let s1' = stmt2stmt s1 env in
+      let s2' = stmt2stmt s2 env in
+      seq_stmts [ v; If (Binop (Neq, result_num, Int 0), s1', s2') ]
+  | While (e, s) ->
+      let t = new_temp () in
+      let _ =
+        stmt2fun (Javascript.Ast.Return e) ("union Value*", t)
+          [ ("struct Environment*", "env") ]
+          env
+      in
+      let s' = stmt2stmt s env in
+      While (Binop (Arrow, Call (Var t, [ Var "env" ]), Var "num"), s')
+  | For (e1, e2, e3, s) ->
+      stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
   | Fn f ->
       program :=
         {

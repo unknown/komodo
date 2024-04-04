@@ -32,6 +32,9 @@ type funcsig = { name : var; args : var list; body : stmt }
 and stmt =
   | Exp of exp
   | Seq of stmt * stmt
+  | If of exp * stmt * stmt
+  | While of exp * stmt
+  | For of exp * exp * exp * stmt
   | Fn of funcsig
   | Return of exp
   | Decl of mut * var * exp * stmt
@@ -80,6 +83,21 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
   match s with
   | Exp e -> tabs ^ string_of_exp e ^ ";\n"
   | Seq (s1, s2) -> string_of_stmt s1 level ^ string_of_stmt s2 level
+  | If (e, s1, s2) ->
+      tabs ^ "if (" ^ string_of_exp e ^ ") {\n"
+      ^ string_of_stmt s1 (level + 1)
+      ^ tabs ^ "}\n" ^ tabs ^ "else {\n"
+      ^ string_of_stmt s2 (level + 1)
+      ^ tabs ^ "}\n"
+  | While (e, s) ->
+      tabs ^ "while (" ^ string_of_exp e ^ ") {\n"
+      ^ string_of_stmt s (level + 1)
+      ^ tabs ^ "}\n"
+  | For (e1, e2, e3, s) ->
+      tabs ^ "for (" ^ string_of_exp e1 ^ "; " ^ string_of_exp e2 ^ "; "
+      ^ string_of_exp e3 ^ ") {\n"
+      ^ string_of_stmt s (level + 1)
+      ^ tabs ^ "}\n"
   | Fn f ->
       tabs ^ "function " ^ f.name ^ "(" ^ String.concat ", " f.args ^ ") {\n"
       ^ string_of_stmt f.body (level + 1)
