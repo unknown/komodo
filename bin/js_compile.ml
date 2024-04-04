@@ -64,7 +64,19 @@ let seq_stmts (stmts : C.Ast.stmt list) : C.Ast.stmt =
   | hd :: tl -> List.fold_left (fun acc stmt -> seq_stmt acc stmt) hd tl
 
 let binop2binop (b : Javascript.Ast.binop) : C.Ast.binop =
-  match b with Plus -> Plus | Minus -> Minus | Times -> Times | Div -> Div
+  match b with
+  | Plus -> Plus
+  | Minus -> Minus
+  | Times -> Times
+  | Div -> Div
+  | Eq -> Eq
+  | Neq -> Neq
+  | Lt -> Lt
+  | Lte -> Lte
+  | Gt -> Gt
+  | Gte -> Gte
+  | And -> And
+  | Or -> Or
 
 let unop2unop (u : Javascript.Ast.unop) : C.Ast.unop =
   match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
@@ -98,13 +110,27 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
       let v1 = exp2stmt e1 env left in
       let store_v1 : C.Ast.stmt = Exp (Assign (Var t, result_num)) in
       let v2 = exp2stmt e2 env left in
-      let eval : C.Ast.exp = Binop (binop2binop op, Var t, result_num) in
-      let store_result : C.Ast.stmt = Exp (Assign (result_num, eval)) in
+      let store_result : C.Ast.stmt =
+        match op with
+        | And ->
+            If
+              ( Var t,
+                Exp (Assign (result_num, result_num)),
+                Exp (Assign (result_num, Var t)) )
+        | Or ->
+            If
+              ( Var t,
+                Exp (Assign (result_num, Var t)),
+                Exp (Assign (result_num, result_num)) )
+        | _ ->
+            Exp (Assign (result_num, Binop (binop2binop op, Var t, result_num)))
+      in
       Decl (("int", t), None, seq_stmts [ v1; store_v1; v2; store_result ])
   | Unop (op, e) ->
       let v = exp2stmt e env left in
-      let eval : C.Ast.exp = Unop (unop2unop op, result_num) in
-      let store_result : C.Ast.stmt = Exp (Assign (result_num, eval)) in
+      let store_result : C.Ast.stmt =
+        Exp (Assign (result_num, Unop (unop2unop op, result_num)))
+      in
       seq_stmts [ v; store_result ]
   | Assign (x, e) ->
       let t = new_temp () in

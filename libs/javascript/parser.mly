@@ -10,8 +10,8 @@ open Ast
 /* terminals */
 %token <int> INT
 %token <string> ID
-%token SEMI LPAREN RPAREN LBRACE RBRACE COMMA EQUAL
-%token PLUS MINUS TIMES DIV
+%token SEMI LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COMMA EQUAL
+%token PLUS MINUS TIMES DIV AND OR
 %token BANG
 %token RETURN
 %token LET CONST
@@ -74,3 +74,11 @@ print:
   | MINUS { Minus }
   | TIMES { Times }
   | DIV { Div }
+  | EQUAL EQUAL EQUAL { Eq }
+  | BANG EQUAL EQUAL { Neq }
+  | LANGLE { Lt }
+  | LANGLE EQUAL { Lte }
+  | RANGLE { Gt }
+  | RANGLE EQUAL { Gte }
+  | AND AND { And }
+  | OR OR { Or }

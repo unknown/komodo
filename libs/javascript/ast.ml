@@ -1,6 +1,20 @@
 type var = string
 type mut = Let | Const
-type binop = Plus | Minus | Times | Div
+
+type binop =
+  | Plus
+  | Minus
+  | Times
+  | Div
+  | Eq
+  | Neq
+  | Lt
+  | Lte
+  | Gt
+  | Gte
+  | And
+  | Or
+
 type unop = UMinus | Not
 
 type exp =
@@ -25,7 +39,19 @@ and stmt =
 type program = stmt
 
 let string_of_binop (op : binop) : string =
-  match op with Plus -> "+" | Minus -> "-" | Times -> "*" | Div -> "/"
+  match op with
+  | Plus -> "+"
+  | Minus -> "-"
+  | Times -> "*"
+  | Div -> "/"
+  | Eq -> "==="
+  | Neq -> "!=="
+  | Lt -> "<"
+  | Lte -> "<="
+  | Gt -> ">"
+  | Gte -> ">="
+  | And -> "&&"
+  | Or -> "||"
 
 let string_of_unop (op : unop) : string =
   match op with UMinus -> "-" | Not -> "!"

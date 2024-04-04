@@ -28,12 +28,16 @@ rule lexer = parse
   | ')' { RPAREN }
   | '{' { LBRACE }
   | '}' { RBRACE }
+  | '<' { LANGLE }
+  | '>' { RANGLE }
   | ',' { COMMA }
   | '=' { EQUAL }
   | '+' { PLUS }
   | '-' { MINUS }
   | '*' { TIMES }
   | '/' { DIV }
+  | '&' { AND }
+  | '|' { OR }
   | '!' { BANG }
   | "return" { RETURN }
   | "let" { LET }
