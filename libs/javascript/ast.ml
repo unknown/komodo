@@ -39,6 +39,8 @@ and stmt =
   | Return of exp
   | Decl of mut * var * exp * stmt
 
+let skip : stmt = Exp (Int 0) (* simulate a skip statement *)
+
 type program = stmt
 
 let string_of_binop (op : binop) : string =

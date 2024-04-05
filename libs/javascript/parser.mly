@@ -34,6 +34,7 @@ stmt:
   | LBRACE stmts RBRACE { $2 }
   | LET ID EQUAL exp SEMI stmts { Decl (Let, $2, $4, $6) }
   | IF LPAREN exp RPAREN stmt ELSE stmt { If ($3, $5, $7) }
+  | IF LPAREN exp RPAREN stmt { If ($3, $5, skip) }
   | WHILE LPAREN exp RPAREN stmt { While ($3, $5) }
   // | FOR LPAREN exp SEMI exp SEMI exp RPAREN stmt { For ($3, $5, $7, $9) }
   | CONST ID EQUAL exp SEMI stmts { Decl (Const, $2, $4, $6) }
