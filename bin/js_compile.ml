@@ -33,7 +33,7 @@ let get_arg (index : int) : C.Ast.exp =
     | 0 -> Binop (Arrow, acc, Var "value")
     | _ -> helper (index' - 1) (Binop (Arrow, acc, Var "next"))
   in
-  helper index (Binop (Arrow, Var "env", Var "variablesHead"))
+  helper index (Binop (Dot, Var "env", Var "variablesHead"))
 
 let lookup_closure (x : C.Ast.var) : C.Ast.exp option =
   let rec helper (globals : C.Ast.def list) : C.Ast.exp option =
@@ -171,10 +171,10 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
               Exp
                 (Assign
                    ( Binop (Arrow, Var t3, Var "next"),
-                     Binop (Arrow, Var t2, Var "variablesHead") ))
+                     Binop (Dot, Var t2, Var "variablesHead") ))
             in
             let store_head : C.Ast.stmt =
-              Exp (Assign (Binop (Arrow, Var t2, Var "variablesHead"), Var t3))
+              Exp (Assign (Binop (Dot, Var t2, Var "variablesHead"), Var t3))
             in
 
             let rest : C.Ast.stmt = compile_call tl s in
@@ -206,24 +206,21 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
       let save_env : C.Ast.stmt =
         Exp
           (Assign
-             ( Binop (Arrow, Var t2, Var "variablesHead"),
-               Binop
-                 (Arrow, Binop (Arrow, Var t1, Var "env"), Var "variablesHead")
+             ( Binop (Dot, Var t2, Var "variablesHead"),
+               Binop (Dot, Binop (Arrow, Var t1, Var "env"), Var "variablesHead")
              ))
       in
       let call : C.Ast.stmt =
         Exp (Call (Binop (Arrow, Var t1, Var "func"), [ Var t2; Var "result" ]))
       in
       let call_with_args = compile_call (List.rev es) call in
-      let free_env : C.Ast.stmt = free (Var t2) in
       Decl
         ( ("struct Closure*", t1),
           Some (Int 0),
           Decl
-            ( ("struct Environment*", t2),
-              Some (malloc "struct Environment"),
-              seq_stmts [ v; store_closure; save_env; call_with_args; free_env ]
-            ) )
+            ( ("struct Environment", t2),
+              None,
+              seq_stmts [ v; store_closure; save_env; call_with_args ] ) )
   | Print e ->
       let v = exp2stmt e env left in
       let print : C.Ast.stmt =
@@ -240,16 +237,12 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       seq_stmts [ s1'; s2' ]
   | If (e, s1, s2) ->
       let t = new_temp () in
-      let save_env : C.Ast.stmt =
-        Exp (Assign (Var t, Unop (Deref, Var "env")))
-      in
+      let save_env : C.Ast.stmt = Exp (Assign (Var t, Var "env")) in
       let v = exp2stmt e env false in
       let s1' = stmt2stmt s1 env in
       let s2' = stmt2stmt s2 env in
       (* TODO: free all new declared variables from env *)
-      let restore_env : C.Ast.stmt =
-        Exp (Assign (Unop (Deref, Var "env"), Var t))
-      in
+      let restore_env : C.Ast.stmt = Exp (Assign (Var "env", Var t)) in
       Decl
         ( ("struct Environment", t),
           None,
@@ -264,18 +257,13 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let t1 = new_temp () in
       let t2 = new_temp () in
       let _ = stmt2fun (Javascript.Ast.Return e) t1 env in
-      let save_env : C.Ast.stmt =
-        Exp (Assign (Var t2, Unop (Deref, Var "env")))
-      in
+      let save_env : C.Ast.stmt = Exp (Assign (Var t2, Var "env")) in
       let e' : C.Ast.exp =
-        ExpSeq
-          (Call (Var t1, [ Unop (AddrOf, Var t2); Var "result" ]), result_num)
+        ExpSeq (Call (Var t1, [ Var t2; Var "result" ]), result_num)
       in
       let s' = stmt2stmt s env in
       (* TODO: free all new declared variables from env *)
-      let restore_env : C.Ast.stmt =
-        Exp (Assign (Unop (Deref, Var "env"), Var t2))
-      in
+      let restore_env : C.Ast.stmt = Exp (Assign (Var "env", Var t2)) in
       Decl
         ( ("struct Environment", t2),
           None,
@@ -324,10 +312,10 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
         Exp
           (Assign
              ( Binop (Arrow, Var t1, Var "next"),
-               Binop (Arrow, Var "env", Var "variablesHead") ))
+               Binop (Dot, Var "env", Var "variablesHead") ))
       in
       let store_head : C.Ast.stmt =
-        Exp (Assign (Binop (Arrow, Var "env", Var "variablesHead"), Var t1))
+        Exp (Assign (Binop (Dot, Var "env", Var "variablesHead"), Var t1))
       in
 
       let s' = stmt2stmt s (x :: env) in
@@ -353,8 +341,8 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
   let compile_body (s : C.Ast.stmt) : C.Ast.stmt =
     if name = "main" then
       Decl
-        ( ("struct Environment*", "env"),
-          Some (malloc "struct Environment"),
+        ( ("struct Environment", "env"),
+          None,
           Decl (("union Value*", "result"), Some (malloc "union Value"), s) )
     else s
   in
@@ -362,7 +350,7 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
   let def = if name = "main" then ("int", "main") else ("void", name) in
   let args =
     if name = "main" then []
-    else [ ("struct Environment*", "env"); ("union Value*", "result") ]
+    else [ ("struct Environment", "env"); ("union Value*", "result") ]
   in
 
   let s' = stmt2stmt s env in

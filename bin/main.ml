@@ -28,8 +28,8 @@ let dump (p : Js_compile.program) =
     \    struct Variable *variablesHead;\n\
      };\n\n\
      struct Closure {\n\
-    \  void (*func)(struct Environment*, union Value*);\n\
-    \  struct Environment* env;\n\
+    \  void (*func)(struct Environment, union Value*);\n\
+    \  struct Environment env;\n\
      };\n\n"
     ^ String.concat "\n"
         (List.map (fun d -> C.Ast.string_of_def d ^ ";") p.globals)
