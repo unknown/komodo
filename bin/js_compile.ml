@@ -246,10 +246,19 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let s2' = stmt2stmt s2 env in
       seq_stmts [ v; If (Binop (Neq, result_num, Int 0), s1', s2') ]
   | While (e, s) ->
-      let t = new_temp () in
-      let _ = stmt2fun (Javascript.Ast.Return e) t env in
+      let t1 = new_temp () in
+      let t2 = new_temp () in
+      let _ = stmt2fun (Javascript.Ast.Return e) t1 env in
+      let e' : C.Ast.exp =
+        ExpSeq
+          ( Assign (Var t2, Call (Var t1, [ Var "env" ])),
+            Binop (Arrow, Var t2, Var "num") )
+      in
       let s' = stmt2stmt s env in
-      While (Binop (Arrow, Call (Var t, [ Var "env" ]), Var "num"), s')
+      Decl
+        ( ("union Value*", t2),
+          Some (Int 0),
+          While (e', seq_stmts [ Exp (Call (Var "free", [ Var t2 ])); s' ]) )
   | For (e1, e2, e3, s) ->
       stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
   | Fn f ->

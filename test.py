@@ -5,7 +5,7 @@ import time
 
 # config
 verbose = True
-optimizations = False
+optimizations = True
 
 
 def compile_js(input_file_path, output_file_path):
