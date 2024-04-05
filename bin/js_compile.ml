@@ -239,10 +239,27 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let s2' = stmt2stmt s2 env in
       seq_stmts [ s1'; s2' ]
   | If (e, s1, s2) ->
+      let t = new_temp () in
+      let save_env : C.Ast.stmt =
+        Exp (Assign (Var t, Unop (Deref, Var "env")))
+      in
       let v = exp2stmt e env false in
       let s1' = stmt2stmt s1 env in
       let s2' = stmt2stmt s2 env in
-      seq_stmts [ v; If (Binop (Neq, result_num, Int 0), s1', s2') ]
+      (* TODO: free all new declared variables from env *)
+      let restore_env : C.Ast.stmt =
+        Exp (Assign (Unop (Deref, Var "env"), Var t))
+      in
+      Decl
+        ( ("struct Environment", t),
+          None,
+          seq_stmts
+            [
+              save_env;
+              v;
+              If (Binop (Neq, result_num, Int 0), s1', s2');
+              restore_env;
+            ] )
   | While (e, s) ->
       let t1 = new_temp () in
       let t2 = new_temp () in
@@ -257,7 +274,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let s' = stmt2stmt s env in
       (* TODO: free all new declared variables from env *)
       let restore_env : C.Ast.stmt =
-        Exp (Assign (Var "env", Unop (AddrOf, Var t2)))
+        Exp (Assign (Unop (Deref, Var "env"), Var t2))
       in
       Decl
         ( ("struct Environment", t2),
