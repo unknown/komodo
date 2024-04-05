@@ -247,11 +247,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       seq_stmts [ v; If (Binop (Neq, result_num, Int 0), s1', s2') ]
   | While (e, s) ->
       let t = new_temp () in
-      let _ =
-        stmt2fun (Javascript.Ast.Return e) ("union Value*", t)
-          [ ("struct Environment*", "env") ]
-          env
-      in
+      let _ = stmt2fun (Javascript.Ast.Return e) t env in
       let s' = stmt2stmt s env in
       While (Binop (Arrow, Call (Var t, [ Var "env" ]), Var "num"), s')
   | For (e1, e2, e3, s) ->
@@ -264,11 +260,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
         };
       let t = new_temp () in
       let env' = List.fold_right (fun arg env -> arg :: env) f.args env in
-      let _ =
-        stmt2fun f.body ("union Value*", t)
-          [ ("struct Environment*", "env") ]
-          env'
-      in
+      let _ = stmt2fun f.body t env' in
       let store_func : C.Ast.stmt =
         Exp (Assign (Binop (Dot, Var f.name, Var "func"), Var t))
       in
@@ -327,10 +319,8 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
                   s';
                 ] ) )
 
-and stmt2fun (s : Javascript.Ast.stmt) (def : C.Ast.def) (args : C.Ast.def list)
-    (env : env) : unit =
-  let _, name = def in
-  let init (s : C.Ast.stmt) : C.Ast.stmt =
+and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
+  let compile_body (s : C.Ast.stmt) : C.Ast.stmt =
     if name = "main" then
       Decl
         ( ("struct Environment*", "env"),
@@ -338,14 +328,20 @@ and stmt2fun (s : Javascript.Ast.stmt) (def : C.Ast.def) (args : C.Ast.def list)
           Decl (("union Value*", "result"), Some (malloc "union Value"), s) )
     else Decl (("union Value*", "result"), Some (malloc "union Value"), s)
   in
+
+  let def = if name = "main" then ("int", "main") else ("union Value*", name) in
+  let args = if name = "main" then [] else [ ("struct Environment*", "env") ] in
+
+  let s' = stmt2stmt s env in
   let return : C.Ast.stmt =
     if name = "main" then Return (Int 0) else Return (Var "result")
   in
-  let body = init (Seq (stmt2stmt s env, return)) in
+  let body = compile_body (seq_stmts [ s'; return ]) in
+
   let f : C.Ast.func = Fn { def; args; body } in
   program := { code = f :: !program.code; globals = !program.globals }
 
 let compile_program (p : Javascript.Ast.program) : program =
-  let args, env = ([], []) in
-  let _ = stmt2fun p ("int", "main") args env in
+  let env = [] in
+  let _ = stmt2fun p "main" env in
   { code = List.rev !program.code; globals = !program.globals }
