@@ -212,9 +212,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
              ))
       in
       let call : C.Ast.stmt =
-        Exp
-          (Assign
-             (Var "result", Call (Binop (Arrow, Var t1, Var "func"), [ Var t2 ])))
+        Exp (Call (Binop (Arrow, Var t1, Var "func"), [ Var t2; Var "result" ]))
       in
       let call_with_args = compile_call (List.rev es) call in
       let free_env : C.Ast.stmt = free (Var t2) in
@@ -247,18 +245,12 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       seq_stmts [ v; If (Binop (Neq, result_num, Int 0), s1', s2') ]
   | While (e, s) ->
       let t1 = new_temp () in
-      let t2 = new_temp () in
       let _ = stmt2fun (Javascript.Ast.Return e) t1 env in
       let e' : C.Ast.exp =
-        ExpSeq
-          ( Assign (Var t2, Call (Var t1, [ Var "env" ])),
-            Binop (Arrow, Var t2, Var "num") )
+        ExpSeq (Call (Var t1, [ Var "env"; Var "result" ]), result_num)
       in
       let s' = stmt2stmt s env in
-      Decl
-        ( ("union Value*", t2),
-          Some (Int 0),
-          While (e', seq_stmts [ Exp (Call (Var "free", [ Var t2 ])); s' ]) )
+      While (e', s')
   | For (e1, e2, e3, s) ->
       stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
   | Fn f ->
@@ -279,7 +271,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       seq_stmts [ store_func; store_env ]
   | Return e ->
       let v = exp2stmt e env false in
-      let return : C.Ast.stmt = Return (Var "result") in
+      let return : C.Ast.stmt = Return None in
       seq_stmts [ v; return ]
   | Decl (_, x, e, s) ->
       let typ = "int" in
@@ -335,15 +327,18 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
         ( ("struct Environment*", "env"),
           Some (malloc "struct Environment"),
           Decl (("union Value*", "result"), Some (malloc "union Value"), s) )
-    else Decl (("union Value*", "result"), Some (malloc "union Value"), s)
+    else s
   in
 
-  let def = if name = "main" then ("int", "main") else ("union Value*", name) in
-  let args = if name = "main" then [] else [ ("struct Environment*", "env") ] in
+  let def = if name = "main" then ("int", "main") else ("void", name) in
+  let args =
+    if name = "main" then []
+    else [ ("struct Environment*", "env"); ("union Value*", "result") ]
+  in
 
   let s' = stmt2stmt s env in
   let return : C.Ast.stmt =
-    if name = "main" then Return (Int 0) else Return (Var "result")
+    if name = "main" then Return (Some (Int 0)) else Return None
   in
   let body = compile_body (seq_stmts [ s'; return ]) in
 

@@ -28,7 +28,7 @@ let dump (p : Js_compile.program) =
     \    struct Variable *variablesHead;\n\
      };\n\n\
      struct Closure {\n\
-    \  union Value* (*func)(struct Environment*);\n\
+    \  void (*func)(struct Environment*, union Value*);\n\
     \  struct Environment* env;\n\
      };\n\n"
     ^ String.concat "\n"

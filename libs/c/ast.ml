@@ -36,7 +36,7 @@ type stmt =
   | If of exp * stmt * stmt
   | While of exp * stmt
   | For of exp * exp * exp * stmt
-  | Return of exp
+  | Return of exp option
   | Decl of def * exp option * stmt
 
 type funcsig = { def : def; args : def list; body : stmt }
@@ -107,7 +107,10 @@ let rec string_of_stmt (s : stmt) (level : int) : string =
       ^ string_of_exp e3 ^ ") {\n"
       ^ string_of_stmt s (level + 1)
       ^ tabs ^ "}\n"
-  | Return e -> tabs ^ "return " ^ string_of_exp e ^ ";\n"
+  | Return e -> (
+      match e with
+      | Some e -> tabs ^ "return " ^ string_of_exp e ^ ";\n"
+      | None -> tabs ^ "return;\n")
   | Decl (d, e, s) ->
       let v = match e with Some e -> " = " ^ string_of_exp e | None -> "" in
       tabs ^ string_of_def d ^ v ^ ";\n" ^ string_of_stmt s level
