@@ -245,21 +245,13 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       Decl
         ( ("struct Environment", t),
           None,
-          seq_stmts
-            [
-              save_env;
-              v;
-              If (Binop (Neq, result_num, Int 0), s1', s2');
-              restore_env;
-            ] )
+          seq_stmts [ save_env; v; If (result_num, s1', s2'); restore_env ] )
   | While (e, s) ->
       let t1 = new_temp () in
       let t2 = new_temp () in
       let _ = stmt2fun (Javascript.Ast.Return e) t1 env in
       let save_env : C.Ast.stmt = Exp (Assign (Var t2, Var "env")) in
-      let e' : C.Ast.exp =
-        ExpSeq (Assign (Var "result", Call (Var t1, [ Var t2 ])), result_num)
-      in
+      let e' : C.Ast.exp = Binop (Dot, Call (Var t1, [ Var t2 ]), Var "num") in
       let s' = stmt2stmt s env in
       (* TODO: free all new declared variables from env *)
       let restore_env : C.Ast.stmt = Exp (Assign (Var "env", Var t2)) in
