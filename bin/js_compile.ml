@@ -1,8 +1,6 @@
 exception Compile_error of string
 
-type program = { code : C.Ast.program; globals : C.Ast.def list }
-
-let program : program ref = ref { code = []; globals = [] }
+let program : C.Ast.program ref = ref []
 
 (* generate fresh labels *)
 let label_counter = ref 0
@@ -18,11 +16,11 @@ let new_temp () = "T" ^ string_of_int (new_int ())
 type env = C.Ast.var list
 
 (* get DeBruijn index of a variable *)
-let lookup_arg (env : env) (x : C.Ast.var) : int option =
+let lookup_arg (env : env) (x : C.Ast.var) : int =
   let rec lookup env' index =
     match env' with
-    | [] -> None
-    | hd :: tl -> if hd = x then Some index else lookup tl (index + 1)
+    | [] -> raise (Compile_error ("Unbound value " ^ x))
+    | hd :: tl -> if hd = x then index else lookup tl (index + 1)
   in
   lookup env 0
 
@@ -33,14 +31,6 @@ let get_arg (index : int) : C.Ast.exp =
     | _ -> helper (index' - 1) (Binop (Arrow, acc, Var "next"))
   in
   helper index (Binop (Dot, Var "env", Var "variablesHead"))
-
-let lookup_closure (x : C.Ast.var) : C.Ast.exp option =
-  let rec helper (globals : C.Ast.def list) : C.Ast.exp option =
-    match globals with
-    | [] -> None
-    | (_, y) :: tl -> if x = y then Some (Var x) else helper tl
-  in
-  helper !program.globals
 
 let malloc (typ : C.Ast.typ) : C.Ast.exp =
   Call (Var "malloc", [ Call (Var "sizeof", [ Var typ ]) ])
@@ -78,26 +68,36 @@ let binop2binop (b : Javascript.Ast.binop) : C.Ast.binop =
 let unop2unop (u : Javascript.Ast.unop) : C.Ast.unop =
   match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
 
+(* replaces all guesses in `t` with their guessed types if they exist *)
+let rec flatten_guesses (t : Javascript.Ast.tipe) : Javascript.Ast.tipe =
+  match t with
+  | Int_t | Bool_t | Unit_t | Tvar_t _ -> t
+  | Fn_t (ts, tret) -> Fn_t (List.map flatten_guesses ts, flatten_guesses tret)
+  | Guess_t tr -> ( match !tr with Some t' -> flatten_guesses t' | None -> t)
+
+let tipe_of ((_, t) : Javascript.Ast.exp) : Javascript.Ast.tipe =
+  flatten_guesses !t
+
 let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
     =
-  match e with
+  match fst e with
   | Int i -> Exp (Assign (result_num, Int i))
   | Var x -> (
-      match lookup_arg env x with
-      | Some index ->
-          if left then
-            Exp
-              (Assign (result_num_ptr, Binop (Dot, get_arg index, Var "numPtr")))
-          else
-            Exp
-              (Assign
-                 ( result_num,
-                   Unop (Deref, Binop (Dot, get_arg index, Var "numPtr")) ))
-      | None -> (
-          match lookup_closure x with
-          | Some closure ->
-              Exp (Assign (result_closure_ptr, Unop (AddrOf, closure)))
-          | None -> raise (Compile_error ("Unbound variable: " ^ x))))
+      let index = lookup_arg env x in
+      match tipe_of e with
+      | Int_t | Bool_t ->
+          let var : C.Ast.exp = Binop (Dot, get_arg index, Var "numPtr") in
+          if left then Exp (Assign (result_num_ptr, var))
+          else Exp (Assign (result_num, Unop (Deref, var)))
+      | Unit_t -> Exp (Assign (result_num, Int 0))
+      | Fn_t _ ->
+          let var : C.Ast.exp = Binop (Dot, get_arg index, Var "closurePtr") in
+          Exp (Assign (result_closure_ptr, var))
+      | t ->
+          (* TODO: support run-time type checking for polymorphic types *)
+          raise
+            (Compile_error
+               ("Unsupported type " ^ Javascript.Ast.string_of_tipe t)))
   | ExpSeq (e1, e2) ->
       let s1 = exp2stmt e1 env left in
       let s2 = exp2stmt e2 env left in
@@ -138,6 +138,33 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
         Exp (Assign (Unop (Deref, Var t), result_num))
       in
       Decl (("int*", t), Some (Int 0), seq_stmts [ vx; store_vx; ve; assign ])
+  | Fn f ->
+      let t1 = new_temp () in
+      let t2 = new_temp () in
+      let env' = List.fold_right (fun arg env -> arg :: env) f.args env in
+      let _ =
+        match f.name with
+        | Some _ ->
+            (* TODO: handle recursive functions *)
+            stmt2fun f.body t1 env'
+        | None -> stmt2fun f.body t1 env'
+      in
+      let malloc_closure : C.Ast.stmt =
+        Exp (Assign (Var t2, malloc "struct Closure"))
+      in
+      let store_func : C.Ast.stmt =
+        Exp (Assign (Binop (Arrow, Var t2, Var "func"), Var t1))
+      in
+      let store_env : C.Ast.stmt =
+        Exp (Assign (Binop (Arrow, Var t2, Var "env"), Var "env"))
+      in
+      let store_result : C.Ast.stmt =
+        Exp (Assign (result_closure_ptr, Var t2))
+      in
+      Decl
+        ( ("struct Closure*", t2),
+          Some (Int 0),
+          seq_stmts [ malloc_closure; store_func; store_env; store_result ] )
   | Call (e, es) ->
       let t1 = new_temp () in
       let t2 = new_temp () in
@@ -223,11 +250,25 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
   | Print e ->
       let v = exp2stmt e env left in
       let print : C.Ast.stmt =
-        Exp (Call (Var "printf", [ String "%d\\n"; result_num ]))
+        match tipe_of e with
+        | Int_t -> Exp (Call (Var "printf", [ String "%d\\n"; result_num ]))
+        | Bool_t ->
+            Exp
+              (Call
+                 ( Var "printf",
+                   [
+                     String "%s\\n";
+                     If (result_num, String "true", String "false");
+                   ] ))
+        | Unit_t -> Exp (Call (Var "printf", [ String "undefined\\n" ]))
+        | t ->
+            raise
+              (Compile_error
+                 ("Unsupported type " ^ Javascript.Ast.string_of_tipe t))
       in
       seq_stmts [ v; print ]
 
-let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
+and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
   match s with
   | Exp e -> exp2stmt e env false
   | Seq (s1, s2) ->
@@ -261,28 +302,11 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
           seq_stmts [ save_env; While (e', seq_stmts [ s'; restore_env ]) ] )
   | For (e1, e2, e3, s) ->
       stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
-  | Fn f ->
-      program :=
-        {
-          code = !program.code;
-          globals = ("struct Closure", f.name) :: !program.globals;
-        };
-      let t = new_temp () in
-      let env' = List.fold_right (fun arg env -> arg :: env) f.args env in
-      let _ = stmt2fun f.body t env' in
-      let store_func : C.Ast.stmt =
-        Exp (Assign (Binop (Dot, Var f.name, Var "func"), Var t))
-      in
-      let store_env : C.Ast.stmt =
-        Exp (Assign (Binop (Dot, Var f.name, Var "env"), Var "env"))
-      in
-      seq_stmts [ store_func; store_env ]
   | Return e ->
       let v = exp2stmt e env false in
       let return : C.Ast.stmt = Return (Some (Var "result")) in
       seq_stmts [ v; return ]
   | Decl (_, x, e, s) ->
-      let typ = "int" in
       let t1 = new_temp () in
       let t2 = new_temp () in
 
@@ -291,13 +315,25 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       in
 
       let v = exp2stmt e env false in
-      let store_result : C.Ast.stmt = Exp (Assign (Var t2, result_num)) in
+      let store_result : C.Ast.stmt = Exp (Assign (Var t2, Var "result")) in
 
       let assign_var : C.Ast.stmt =
-        Exp
-          (Assign
-             ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "numPtr"),
-               Unop (AddrOf, Var t2) ))
+        match tipe_of e with
+        | Int_t | Bool_t | Unit_t ->
+            Exp
+              (Assign
+                 ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "numPtr"),
+                   Unop (AddrOf, Binop (Dot, Var t2, Var "num")) ))
+        | Fn_t _ ->
+            Exp
+              (Assign
+                 ( Binop
+                     (Dot, Binop (Arrow, Var t1, Var "value"), Var "closurePtr"),
+                   Binop (Dot, Var t2, Var "closurePtr") ))
+        | t ->
+            raise
+              (Compile_error
+                 ("Unsupported type " ^ Javascript.Ast.string_of_tipe t))
       in
       let store_next : C.Ast.stmt =
         Exp
@@ -315,7 +351,7 @@ let rec stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
         ( ("struct Variable*", t1),
           Some (Int 0),
           Decl
-            ( (typ, t2),
+            ( ("union Value", t2),
               None,
               seq_stmts
                 [
@@ -349,9 +385,9 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
   let body = compile_body (seq_stmts [ s'; return ]) in
 
   let f : C.Ast.func = Fn { def; args; body } in
-  program := { code = f :: !program.code; globals = !program.globals }
+  program := f :: !program
 
-let compile_program (p : Javascript.Ast.program) : program =
+let compile_program (p : Javascript.Ast.program) : C.Ast.program =
   let env = [] in
   let _ = stmt2fun p "main" env in
-  { code = List.rev !program.code; globals = !program.globals }
+  List.rev !program

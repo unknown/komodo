@@ -1,5 +1,7 @@
 %{
 open Ast
+
+let guess () = ref (Guess_t (ref None))
 %}
 
 %start program
@@ -38,7 +40,6 @@ stmt:
   | WHILE LPAREN exp RPAREN stmt { While ($3, $5) }
   // | FOR LPAREN exp SEMI exp SEMI exp RPAREN stmt { For ($3, $5, $7, $9) }
   | CONST ID EQUAL exp SEMI stmts { Decl (Const, $2, $4, $6) }
-  | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { Fn { name = $2; args = $4; body = $7 } }
 
 stmts:
   stmt { $1 }
@@ -52,16 +53,20 @@ params:
   | param COMMA params { $1::$3 }
 
 exp:
-  ID { Var $1 }
-  | INT { Int $1 }
+  ID { (Var $1, guess ()) }
+  | INT { (Int $1, guess ()) }
   // | exp COMMA exp { ExpSeq($1, $3) }
-  | unop exp %prec UNOP { Unop ($1, $2) }
-  | exp binop exp { Binop ($2, $1, $3) }
-  | exp EQUAL exp { Assign ($1, $3) }
+  | unop exp %prec UNOP { (Unop ($1, $2), guess ()) }
+  | exp binop exp { (Binop ($2, $1, $3), guess ()) }
+  | exp EQUAL exp { (Assign ($1, $3), guess ()) }
   | LPAREN exp RPAREN { $2 }
-  | exp LPAREN RPAREN { Call($1, []) }
-  | exp LPAREN exps RPAREN { Call($1, $3) }
-  | print { $1 }
+  | FUNCTION LPAREN RPAREN LBRACE stmts RBRACE { (Fn { name = None; args = []; body = $5 }, guess ()) }
+  | FUNCTION LPAREN params RPAREN LBRACE stmts RBRACE { (Fn { name = None; args = $3; body = $6 }, guess ()) }
+  | FUNCTION ID LPAREN RPAREN LBRACE stmts RBRACE { (Fn { name = Some($2); args = []; body = $6 }, guess ()) }
+  | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { (Fn { name = Some($2); args = $4; body = $7 }, guess ()) }
+  | exp LPAREN RPAREN { (Call($1, []), guess ()) }
+  | exp LPAREN exps RPAREN { (Call($1, $3), guess ()) }
+  | print { ($1, guess ()) }
 
 exps:
   exp { [$1] }

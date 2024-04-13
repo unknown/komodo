@@ -27,6 +27,7 @@ type exp =
   | ExpSeq of exp * exp
   | Binop of binop * exp * exp
   | Unop of unop * exp
+  | If of exp * exp * exp
   | Assign of exp * exp
   | Call of exp * exp list
 
@@ -81,6 +82,9 @@ let rec string_of_exp (e : exp) : string =
   | Binop (op, e1, e2) ->
       "(" ^ string_of_exp e1 ^ string_of_binop op ^ string_of_exp e2 ^ ")"
   | Unop (op, e) -> string_of_unop op ^ string_of_exp e
+  | If (e1, e2, e3) ->
+      "(" ^ string_of_exp e1 ^ " ? " ^ string_of_exp e2 ^ " : "
+      ^ string_of_exp e3 ^ ")"
   | Assign (x, e) -> string_of_exp x ^ " = " ^ string_of_exp e
   | Call (e, es) -> string_of_exp e ^ "(" ^ string_of_exps es ^ ")"
 
