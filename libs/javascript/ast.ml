@@ -1,6 +1,7 @@
 type var = string
 type tvar = string
 type mut = Let | Const
+type pos = Lexing.position
 
 type tipe =
   | Number_t
@@ -41,7 +42,7 @@ and rexp =
   | Call of exp * exp list
   | Print of exp
 
-and exp = rexp * tipe ref
+and exp = rexp * tipe ref * pos
 
 and stmt =
   | Exp of exp
@@ -52,7 +53,8 @@ and stmt =
   | Return of exp
   | Decl of mut * var * exp * stmt
 
-let skip : stmt = Exp (Number 0., ref Number_t) (* simulate a skip statement *)
+(* simulate a skip statement *)
+let skip : stmt = Exp (Number 0., ref Number_t, Lexing.dummy_pos)
 
 type program = stmt
 
@@ -77,6 +79,10 @@ let lookup (tr : tipe option ref) : tipe =
     | (r', t) :: tl -> if r' == r then t else helper tl r
   in
   helper !env tr
+
+let string_of_pos (pos : pos) =
+  "Line " ^ string_of_int pos.pos_lnum ^ ", character "
+  ^ string_of_int (pos.pos_cnum - pos.pos_bol + 1)
 
 let rec string_of_tipe (t : tipe) : string =
   match t with
@@ -114,7 +120,7 @@ let string_of_unop (op : unop) : string =
 let string_of_mut (m : mut) : string =
   match m with Let -> "let" | Const -> "const"
 
-let rec string_of_exp ((e, _) : exp) (level : int) : string =
+let rec string_of_exp ((e, _, _) : exp) (level : int) : string =
   match e with
   | Number n -> string_of_float n
   | Var x -> x
@@ -160,7 +166,8 @@ and string_of_stmt (s : stmt) (level : int) : string =
       ^ tabs ^ "}\n"
   | Return e -> tabs ^ "return " ^ string_of_exp e level ^ ";\n"
   | Decl (m, x, e, s) ->
-      let tx = ": " ^ string_of_tipe !(snd e) in
+      let _, tr, _ = e in
+      let tx = ": " ^ string_of_tipe !tr in
       tabs ^ string_of_mut m ^ " " ^ x ^ tx ^ " = " ^ string_of_exp e level
       ^ ";\n" ^ string_of_stmt s level
 

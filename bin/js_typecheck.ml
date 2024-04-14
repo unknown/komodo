@@ -2,6 +2,9 @@ open Javascript.Ast
 
 exception TypeError of string
 
+let type_error (s : string) ((_, _, pos) : exp) =
+  raise (TypeError (string_of_pos pos ^ ":\nError: " ^ s))
+
 let minus (lst1 : 'a list) (lst2 : 'a list) : 'a list =
   List.filter (fun x -> not (List.memq x lst2)) lst1
 
@@ -12,10 +15,10 @@ type env = (var * tipe_scheme) list
 
 let extend (env : env) (x : var) (s : tipe_scheme) : env = (x, s) :: env
 
-let rec lookup (env : env) (x : var) : tipe_scheme =
+let rec lookup (env : env) (x : var) : tipe_scheme option =
   match env with
-  | [] -> raise (TypeError ("Unbound value " ^ x))
-  | (x', s) :: tl -> if x = x' then s else lookup tl x
+  | [] -> None
+  | (x', s) :: tl -> if x = x' then Some s else lookup tl x
 
 let var_counter = ref 0
 
@@ -146,12 +149,15 @@ let type_error_string (t1 : tipe) (t2 : tipe) : string =
   ^ " but an expression was expected of type " ^ string_of_tipe t2
 
 let rec type_check_exp (env : env) (e : exp) : tipe =
-  let e', tr = e in
+  let e', tr, _ = e in
   let t =
     match e' with
     | Number _ -> Number_t
-    | Var x -> instantiate (lookup env x)
-    | ExpSeq (_, _) -> raise (TypeError "TODO")
+    | Var x -> (
+        match lookup env x with
+        | Some s -> instantiate s
+        | None -> type_error ("Unbound value " ^ x) e)
+    | ExpSeq (_, _) -> type_error "TODO" e
     | Binop (op, e1, e2) -> (
         let t1 = type_check_exp env e1 in
         let t2 = type_check_exp env e2 in
@@ -159,31 +165,30 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         | Plus | Minus | Times | Div ->
             if unify t1 Number_t then
               if unify t2 Number_t then Number_t
-              else raise (TypeError (type_error_string t2 Number_t))
-            else raise (TypeError (type_error_string t1 Number_t))
+              else type_error (type_error_string t2 Number_t) e2
+            else type_error (type_error_string t1 Number_t) e1
         | Eq | Neq ->
             if unify t1 t2 then Bool_t
-            else raise (TypeError (type_error_string t2 t1))
+            else type_error (type_error_string t2 t1) e2
         | Lt | Lte | Gt | Gte ->
             if unify t1 Number_t then
               if unify t2 Number_t then Bool_t
-              else raise (TypeError (type_error_string t2 Number_t))
-            else raise (TypeError (type_error_string t1 Number_t))
+              else type_error (type_error_string t2 Number_t) e2
+            else type_error (type_error_string t1 Number_t) e1
         | And | Or ->
             (* TODO: the resulting type should be `t1 | t2` *)
-            if unify t1 t2 then t1
-            else raise (TypeError (type_error_string t2 t1)))
-    | Unop (op, e) -> (
-        let t = type_check_exp env e in
+            if unify t1 t2 then t1 else type_error (type_error_string t2 t1) e2)
+    | Unop (op, e') -> (
+        let t = type_check_exp env e' in
         match op with
         | UMinus ->
             if unify t Number_t then Number_t
-            else raise (TypeError (type_error_string t Number_t))
+            else type_error (type_error_string t Number_t) e
         | Not -> Bool_t)
     | Assign (e1, e2) ->
         let t1 = type_check_exp env e1 in
         let t2 = type_check_exp env e2 in
-        if unify t1 t2 then t1 else raise (TypeError (type_error_string t2 t1))
+        if unify t1 t2 then t1 else type_error (type_error_string t2 t1) e2
     | Fn f -> (
         let ts = List.map (fun _ -> guess ()) f.args in
         let env' =
@@ -198,18 +203,18 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
             let env' = extend env' x (Forall ([], Fn_t (ts, g))) in
             let tb = type_check_stmt env' f.body in
             if unify g tb then Fn_t (ts, tb)
-            else raise (TypeError (type_error_string g tb))
+            else type_error (type_error_string g tb) e
         | None ->
             let tb = type_check_stmt env' f.body in
             Fn_t (ts, tb))
-    | Call (e, es) ->
-        let t = type_check_exp env e in
+    | Call (e', es) ->
+        let t = type_check_exp env e' in
         let ts = List.map (type_check_exp env) es in
         let g = guess () in
         if unify t (Fn_t (ts, g)) then g
-        else raise (TypeError (type_error_string t (Fn_t (ts, g))))
-    | Print e ->
-        let _ = type_check_exp env e in
+        else type_error (type_error_string t (Fn_t (ts, g))) e
+    | Print e' ->
+        let _ = type_check_exp env e' in
         Unit_t
   in
   tr := t;

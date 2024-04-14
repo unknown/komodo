@@ -76,12 +76,13 @@ let rec flatten_guesses (t : Javascript.Ast.tipe) : Javascript.Ast.tipe =
   | Fn_t (ts, tret) -> Fn_t (List.map flatten_guesses ts, flatten_guesses tret)
   | Guess_t tr -> ( match !tr with Some t' -> flatten_guesses t' | None -> t)
 
-let tipe_of ((_, t) : Javascript.Ast.exp) : Javascript.Ast.tipe =
-  flatten_guesses !t
+let tipe_of ((_, tr, _) : Javascript.Ast.exp) : Javascript.Ast.tipe =
+  flatten_guesses !tr
 
 let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
     =
-  match fst e with
+  let e', _, _ = e in
+  match e' with
   | Number n -> Exp (Assign (result_num, Double n))
   | Var x ->
       let index = lookup_arg env x in

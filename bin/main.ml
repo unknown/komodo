@@ -53,9 +53,13 @@ let dump_program (p : C.Ast.program) =
 let () =
   let mode, program = parse_file () in
   match mode with
-  | Typecheck ->
-      let _ = type_check_prog program in
-      print_string (Javascript.Ast.string_of_program program)
+  | Typecheck -> (
+      try
+        let _ = type_check_prog program in
+        print_string (Javascript.Ast.string_of_program program)
+      with Js_typecheck.TypeError e ->
+        print_string e;
+        print_newline ())
   | Compile ->
       let c_program = compile_prog program in
       dump_program c_program
