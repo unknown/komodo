@@ -9,3 +9,6 @@ console.log(c);
 
 const d = 1 / 3;
 console.log(d);
+
+const e = 1 === 1;
+console.log(e);

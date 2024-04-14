@@ -80,8 +80,8 @@ let lookup (tr : tipe option ref) : tipe =
 
 let rec string_of_tipe (t : tipe) : string =
   match t with
-  | Number_t -> "int"
-  | Bool_t -> "bool"
+  | Number_t -> "number"
+  | Bool_t -> "boolean"
   | Unit_t -> "void"
   | Tvar_t tvar -> "'" ^ tvar
   | Fn_t (ts, tret) ->
