@@ -1,20 +1,33 @@
-let parse_file () =
+type mode = Typecheck | Compile
+
+let mode_of_string str = if str = "typecheck" then Typecheck else Compile
+
+let parse_file () : mode * Javascript.Ast.program =
   let argv = Sys.argv in
   let _ =
-    if Array.length argv != 2 then (
-      prerr_string ("usage: " ^ argv.(0) ^ " [file-to-parse]\n");
+    if
+      Array.length argv != 3
+      || not (argv.(1) = "typecheck" || argv.(1) = "compile")
+    then (
+      prerr_string
+        ("usage: " ^ argv.(0) ^ " [typecheck | compile] [file-to-parse]\n");
       exit 1)
   in
-  let ch = open_in argv.(1) in
-  Javascript.Parser.program Javascript.Lexer.lexer (Lexing.from_channel ch)
+  let ch = open_in argv.(2) in
+  let mode = mode_of_string argv.(1) in
+  let program =
+    Javascript.Parser.program Javascript.Lexer.lexer (Lexing.from_channel ch)
+  in
+  (mode, program)
 
 let type_check_prog (p : Javascript.Ast.program) : Javascript.Ast.tipe =
   Js_typecheck.type_check_program p
 
 let compile_prog (p : Javascript.Ast.program) : C.Ast.program =
+  let _ = type_check_prog p in
   Js_compile.compile_program p
 
-let dump (p : C.Ast.program) =
+let dump_program (p : C.Ast.program) =
   let prog_str =
     "#include <stdio.h>\n\
      #include <stdlib.h>\n\n\
@@ -35,12 +48,14 @@ let dump (p : C.Ast.program) =
     \  struct Environment env;\n\
      };\n\n" ^ C.Ast.string_of_program p
   in
-  let _ = print_string prog_str in
-  ()
+  print_string prog_str
 
 let () =
-  let js_program = parse_file () in
-  let _ = type_check_prog js_program in
-  (* let _ = print_string (Javascript.Ast.string_of_program js_program) in*)
-  let c_program = compile_prog js_program in
-  dump c_program
+  let mode, program = parse_file () in
+  match mode with
+  | Typecheck ->
+      let _ = type_check_prog program in
+      print_string (Javascript.Ast.string_of_program program)
+  | Compile ->
+      let c_program = compile_prog program in
+      dump_program c_program

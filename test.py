@@ -10,7 +10,8 @@ optimizations = True
 
 def compile_js(input_file_path, output_file_path):
     compile_res = subprocess.run(
-        ["dune", "exec", "bin/main.exe", input_file_path], capture_output=True
+        ["dune", "exec", "bin/main.exe", "compile", input_file_path],
+        capture_output=True,
     )
 
     if compile_res.returncode != 0:
