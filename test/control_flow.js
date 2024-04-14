@@ -10,6 +10,5 @@ if (a === 1) {
 let i = 1;
 while (i <= 1024) {
   console.log(i);
-  const next = i * 2;
-  i = next;
+  i = i * 2;
 }
