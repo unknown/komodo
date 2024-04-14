@@ -40,12 +40,9 @@ let dump_program (p : C.Ast.program) =
     \    union Value value;\n\
     \    struct Variable* next;\n\
      };\n\n\
-     struct Environment {\n\
-    \    struct Variable *variablesHead;\n\
-     };\n\n\
      struct Closure {\n\
-    \  union Value (*func)(struct Environment);\n\
-    \  struct Environment env;\n\
+    \  union Value (*func)(struct Variable* env);\n\
+    \  struct Variable* env;\n\
      };\n\n" ^ C.Ast.string_of_program p
   in
   print_string prog_str

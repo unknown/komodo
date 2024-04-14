@@ -30,18 +30,19 @@ let get_arg (index : int) : C.Ast.exp =
     | 0 -> Binop (Arrow, acc, Var "value")
     | _ -> helper (index' - 1) (Binop (Arrow, acc, Var "next"))
   in
-  helper index (Binop (Dot, Var "env", Var "variablesHead"))
+  helper index (Var "env")
 
 let malloc (typ : C.Ast.typ) : C.Ast.exp =
   Call (Var "malloc", [ Call (Var "sizeof", [ Var typ ]) ])
 
 let free (e : C.Ast.exp) : C.Ast.stmt = Exp (Call (Var "free", [ e ]))
 
-(* helper variables to get values from result structs *)
+(* commonly used expressions *)
 let result : C.Ast.exp = Var "result"
 let result_num : C.Ast.exp = Binop (Dot, result, Var "num")
 let result_closure_ptr : C.Ast.exp = Binop (Dot, result, Var "closurePtr")
 let result_var : C.Ast.exp = Binop (Dot, result, Var "var")
+let null : C.Ast.exp = Var "NULL"
 
 (* helper functions to sequence statements *)
 let seq_stmt (s1 : C.Ast.stmt) (s2 : C.Ast.stmt) : C.Ast.stmt = Seq (s1, s2)
@@ -155,7 +156,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
       in
       Decl
         ( ("struct Closure*", t2),
-          Some (Int 0),
+          Some null,
           seq_stmts [ malloc_closure; store_func; store_env; store_result ] )
   | Call (e, es) ->
       let t1 = new_temp () in
@@ -181,22 +182,18 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
                      Unop (AddrOf, Var t4) ))
             in
             let store_next : C.Ast.stmt =
-              Exp
-                (Assign
-                   ( Binop (Arrow, Var t3, Var "next"),
-                     Binop (Dot, Var t2, Var "variablesHead") ))
+              Exp (Assign (Binop (Arrow, Var t3, Var "next"), Var t2))
             in
-            let store_head : C.Ast.stmt =
-              Exp (Assign (Binop (Dot, Var t2, Var "variablesHead"), Var t3))
-            in
+            let store_head : C.Ast.stmt = Exp (Assign (Var t2, Var t3)) in
 
             let rest : C.Ast.stmt = compile_call tl s in
 
+            (* TODO: this segfaults if the call returns a closure referencing this var *)
             let free_var : C.Ast.stmt = free (Var t3) in
 
             Decl
               ( ("struct Variable*", t3),
-                Some (Int 0),
+                Some null,
                 Decl
                   ( ("union Value", t4),
                     None,
@@ -217,11 +214,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
         Exp (Assign (Var t1, result_closure_ptr))
       in
       let save_env : C.Ast.stmt =
-        Exp
-          (Assign
-             ( Binop (Dot, Var t2, Var "variablesHead"),
-               Binop (Dot, Binop (Arrow, Var t1, Var "env"), Var "variablesHead")
-             ))
+        Exp (Assign (Var t2, Binop (Arrow, Var t1, Var "env")))
       in
       let call_exp : C.Ast.exp =
         Call (Binop (Arrow, Var t1, Var "func"), [ Var t2 ])
@@ -231,10 +224,10 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
 
       Decl
         ( ("struct Closure*", t1),
-          Some (Int 0),
+          Some null,
           Decl
-            ( ("struct Environment", t2),
-              None,
+            ( ("struct Variable*", t2),
+              Some null,
               seq_stmts [ v; store_closure; save_env; call_with_args ] ) )
   | Print e ->
       let v = exp2stmt e env left in
@@ -274,8 +267,8 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       (* TODO: free all new declared variables from env *)
       let restore_env : C.Ast.stmt = Exp (Assign (Var "env", Var t)) in
       Decl
-        ( ("struct Environment", t),
-          None,
+        ( ("struct Variable*", t),
+          Some null,
           seq_stmts [ save_env; v; If (result_num, s1', s2'); restore_env ] )
   | While (e, s) ->
       let t1 = new_temp () in
@@ -287,8 +280,8 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       (* TODO: free all new declared variables from env *)
       let restore_env : C.Ast.stmt = Exp (Assign (Var "env", Var t2)) in
       Decl
-        ( ("struct Environment", t2),
-          None,
+        ( ("struct Variable*", t2),
+          Some null,
           seq_stmts [ save_env; While (e', seq_stmts [ s'; restore_env ]) ] )
   | For (e1, e2, e3, s) ->
       stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
@@ -305,6 +298,7 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       in
 
       let v = exp2stmt e env false in
+      (* TODO: ponder deeply whether it is safe to store this on the stack *)
       let store_result : C.Ast.stmt = Exp (Assign (Var t2, result)) in
 
       let assign_var : C.Ast.stmt =
@@ -314,20 +308,15 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
                Unop (AddrOf, Var t2) ))
       in
       let store_next : C.Ast.stmt =
-        Exp
-          (Assign
-             ( Binop (Arrow, Var t1, Var "next"),
-               Binop (Dot, Var "env", Var "variablesHead") ))
+        Exp (Assign (Binop (Arrow, Var t1, Var "next"), Var "env"))
       in
-      let store_head : C.Ast.stmt =
-        Exp (Assign (Binop (Dot, Var "env", Var "variablesHead"), Var t1))
-      in
+      let store_head : C.Ast.stmt = Exp (Assign (Var "env", Var t1)) in
 
       let s' = stmt2stmt s (x :: env) in
 
       Decl
         ( ("struct Variable*", t1),
-          Some (Int 0),
+          Some null,
           Decl
             ( ("union Value", t2),
               None,
@@ -346,14 +335,14 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
   let compile_body (s : C.Ast.stmt) : C.Ast.stmt =
     if name = "main" then
       Decl
-        ( ("struct Environment", "env"),
-          None,
+        ( ("struct Variable*", "env"),
+          Some null,
           Decl (("union Value", "result"), None, s) )
     else Decl (("union Value", "result"), None, s)
   in
 
   let def = if name = "main" then ("int", "main") else ("union Value", name) in
-  let args = if name = "main" then [] else [ ("struct Environment", "env") ] in
+  let args = if name = "main" then [] else [ ("struct Variable*", "env") ] in
 
   let s' = stmt2stmt s env in
   let return : C.Ast.stmt =
