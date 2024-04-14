@@ -3,7 +3,7 @@ type tvar = string
 type mut = Let | Const
 
 type tipe =
-  | Int_t
+  | Number_t
   | Bool_t
   | Unit_t
   | Tvar_t of tvar
@@ -31,7 +31,7 @@ type unop = UMinus | Not
 type funcsig = { name : var option; args : var list; body : stmt }
 
 and rexp =
-  | Int of int (* TODO: JavaScript's numbers are 64-bit floats, not integers *)
+  | Number of float
   | Var of var
   | ExpSeq of exp * exp
   | Binop of binop * exp * exp
@@ -52,7 +52,7 @@ and stmt =
   | Return of exp
   | Decl of mut * var * exp * stmt
 
-let skip : stmt = Exp (Int 0, ref Int_t) (* simulate a skip statement *)
+let skip : stmt = Exp (Number 0., ref Number_t) (* simulate a skip statement *)
 
 type program = stmt
 
@@ -80,7 +80,7 @@ let lookup (tr : tipe option ref) : tipe =
 
 let rec string_of_tipe (t : tipe) : string =
   match t with
-  | Int_t -> "int"
+  | Number_t -> "int"
   | Bool_t -> "bool"
   | Unit_t -> "void"
   | Tvar_t tvar -> "'" ^ tvar
@@ -116,7 +116,7 @@ let string_of_mut (m : mut) : string =
 
 let rec string_of_exp ((e, _) : exp) (level : int) : string =
   match e with
-  | Int i -> string_of_int i
+  | Number n -> string_of_float n
   | Var x -> x
   | ExpSeq (e1, e2) -> string_of_exp e1 level ^ ", " ^ string_of_exp e2 level
   | Binop (op, e1, e2) ->

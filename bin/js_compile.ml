@@ -38,9 +38,10 @@ let malloc (typ : C.Ast.typ) : C.Ast.exp =
 let free (e : C.Ast.exp) : C.Ast.stmt = Exp (Call (Var "free", [ e ]))
 
 (* helper variables to get values from result structs *)
-let result_num : C.Ast.exp = Binop (Dot, Var "result", Var "num")
-let result_num_ptr : C.Ast.exp = Binop (Dot, Var "result", Var "numPtr")
-let result_closure_ptr : C.Ast.exp = Binop (Dot, Var "result", Var "closurePtr")
+let result : C.Ast.exp = Var "result"
+let result_num : C.Ast.exp = Binop (Dot, result, Var "num")
+let result_closure_ptr : C.Ast.exp = Binop (Dot, result, Var "closurePtr")
+let result_var : C.Ast.exp = Binop (Dot, result, Var "var")
 
 (* helper functions to sequence statements *)
 let seq_stmt (s1 : C.Ast.stmt) (s2 : C.Ast.stmt) : C.Ast.stmt = Seq (s1, s2)
@@ -71,7 +72,7 @@ let unop2unop (u : Javascript.Ast.unop) : C.Ast.unop =
 (* replaces all guesses in `t` with their guessed types if they exist *)
 let rec flatten_guesses (t : Javascript.Ast.tipe) : Javascript.Ast.tipe =
   match t with
-  | Int_t | Bool_t | Unit_t | Tvar_t _ -> t
+  | Number_t | Bool_t | Unit_t | Tvar_t _ -> t
   | Fn_t (ts, tret) -> Fn_t (List.map flatten_guesses ts, flatten_guesses tret)
   | Guess_t tr -> ( match !tr with Some t' -> flatten_guesses t' | None -> t)
 
@@ -81,28 +82,18 @@ let tipe_of ((_, t) : Javascript.Ast.exp) : Javascript.Ast.tipe =
 let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
     =
   match fst e with
-  | Int i -> Exp (Assign (result_num, Int i))
-  | Var x -> (
+  | Number n -> Exp (Assign (result_num, Double n))
+  | Var x ->
       let index = lookup_arg env x in
-      match tipe_of e with
-      | Int_t | Bool_t ->
-          let var : C.Ast.exp = Binop (Dot, get_arg index, Var "numPtr") in
-          if left then Exp (Assign (result_num_ptr, var))
-          else Exp (Assign (result_num, Unop (Deref, var)))
-      | Unit_t -> Exp (Assign (result_num, Int 0))
-      | Fn_t _ ->
-          let var : C.Ast.exp = Binop (Dot, get_arg index, Var "closurePtr") in
-          Exp (Assign (result_closure_ptr, var))
-      | t ->
-          (* TODO: support run-time type checking for polymorphic types *)
-          raise
-            (Compile_error
-               ("Unsupported type " ^ Javascript.Ast.string_of_tipe t)))
+      let var : C.Ast.exp = Binop (Dot, get_arg index, Var "var") in
+      if left then Exp (Assign (result_var, var))
+      else Exp (Assign (result, Unop (Deref, var)))
   | ExpSeq (e1, e2) ->
       let s1 = exp2stmt e1 env left in
       let s2 = exp2stmt e2 env left in
       seq_stmts [ s1; s2 ]
   | Binop (op, e1, e2) ->
+      (* TODO: check types of `e1` and `e2` *)
       let t = new_temp () in
       let v1 = exp2stmt e1 env left in
       let store_v1 : C.Ast.stmt = Exp (Assign (Var t, result_num)) in
@@ -122,7 +113,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
         | _ ->
             Exp (Assign (result_num, Binop (binop2binop op, Var t, result_num)))
       in
-      Decl (("int", t), None, seq_stmts [ v1; store_v1; v2; store_result ])
+      Decl (("double", t), None, seq_stmts [ v1; store_v1; v2; store_result ])
   | Unop (op, e) ->
       let v = exp2stmt e env left in
       let store_result : C.Ast.stmt =
@@ -132,12 +123,12 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
   | Assign (x, e) ->
       let t = new_temp () in
       let vx = exp2stmt x env true in
-      let store_vx : C.Ast.stmt = Exp (Assign (Var t, result_num_ptr)) in
+      let store_vx : C.Ast.stmt = Exp (Assign (Var t, Var "result")) in
       let ve = exp2stmt e env left in
-      let assign : C.Ast.stmt =
-        Exp (Assign (Unop (Deref, Var t), result_num))
+      let assign_var : C.Ast.stmt =
+        Exp (Assign (Unop (Deref, Binop (Dot, Var t, Var "var")), result))
       in
-      Decl (("int*", t), Some (Int 0), seq_stmts [ vx; store_vx; ve; assign ])
+      Decl (("union Value", t), None, seq_stmts [ vx; store_vx; ve; assign_var ])
   | Fn f ->
       let t1 = new_temp () in
       let t2 = new_temp () in
@@ -172,8 +163,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
           C.Ast.stmt =
         match args with
         | [] -> s
-        | hd :: tl ->
-            let typ = "int" in
+        | e' :: tl ->
             let t3 = new_temp () in
             let t4 = new_temp () in
 
@@ -181,14 +171,14 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
               Exp (Assign (Var t3, malloc "struct Variable"))
             in
 
-            let v = exp2stmt hd env left in
-            let store_result : C.Ast.stmt = Exp (Assign (Var t4, result_num)) in
-
+            let v = exp2stmt e' env left in
+            let store_result : C.Ast.stmt =
+              Exp (Assign (Var t4, Var "result"))
+            in
             let assign_var : C.Ast.stmt =
               Exp
                 (Assign
-                   ( Binop
-                       (Dot, Binop (Arrow, Var t3, Var "value"), Var "numPtr"),
+                   ( Binop (Dot, Binop (Arrow, Var t3, Var "value"), Var "var"),
                      Unop (AddrOf, Var t4) ))
             in
             let store_next : C.Ast.stmt =
@@ -209,7 +199,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
               ( ("struct Variable*", t3),
                 Some (Int 0),
                 Decl
-                  ( (typ, t4),
+                  ( ("union Value", t4),
                     None,
                     seq_stmts
                       [
@@ -251,7 +241,8 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
       let v = exp2stmt e env left in
       let print : C.Ast.stmt =
         match tipe_of e with
-        | Int_t -> Exp (Call (Var "printf", [ String "%d\\n"; result_num ]))
+        | Number_t ->
+            Exp (Call (Var "printf", [ String "%.16g\\n"; result_num ]))
         | Bool_t ->
             Exp
               (Call
@@ -318,22 +309,10 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       let store_result : C.Ast.stmt = Exp (Assign (Var t2, Var "result")) in
 
       let assign_var : C.Ast.stmt =
-        match tipe_of e with
-        | Int_t | Bool_t | Unit_t ->
-            Exp
-              (Assign
-                 ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "numPtr"),
-                   Unop (AddrOf, Binop (Dot, Var t2, Var "num")) ))
-        | Fn_t _ ->
-            Exp
-              (Assign
-                 ( Binop
-                     (Dot, Binop (Arrow, Var t1, Var "value"), Var "closurePtr"),
-                   Binop (Dot, Var t2, Var "closurePtr") ))
-        | t ->
-            raise
-              (Compile_error
-                 ("Unsupported type " ^ Javascript.Ast.string_of_tipe t))
+        Exp
+          (Assign
+             ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "var"),
+               Unop (AddrOf, Var t2) ))
       in
       let store_next : C.Ast.stmt =
         Exp

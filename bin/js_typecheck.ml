@@ -27,7 +27,7 @@ let fresh_var () : var =
 (* returns whether the reference `tr` already occurs in type `t` *)
 let rec occurs (tr : tipe option ref) (t : tipe) : bool =
   match t with
-  | Int_t | Bool_t | Unit_t | Tvar_t _ -> false
+  | Number_t | Bool_t | Unit_t | Tvar_t _ -> false
   | Fn_t (ts, tret) -> List.exists (occurs tr) ts || occurs tr tret
   | Guess_t tr' -> (
       if tr == tr' then true
@@ -36,7 +36,7 @@ let rec occurs (tr : tipe option ref) (t : tipe) : bool =
 (* returns whether `t1` and `t2` are equal *)
 let rec tipes_equal (t1 : tipe) (t2 : tipe) : bool =
   match (t1, t2) with
-  | Int_t, Int_t | Bool_t, Bool_t | Unit_t, Unit_t | Tvar_t _, Tvar_t _ ->
+  | Number_t, Number_t | Bool_t, Bool_t | Unit_t, Unit_t | Tvar_t _, Tvar_t _ ->
       t1 = t2
   | Fn_t (ts1, tret1), Fn_t (ts2, tret2) ->
       List.length ts1 = List.length ts2
@@ -80,7 +80,7 @@ let rec unify (t1 : tipe) (t2 : tipe) : bool =
 (* substitutes all type variables in `t` with corresponding type variables in `vs` *)
 let rec substitute (vs : (tvar * tipe) list) (t : tipe) : tipe =
   match t with
-  | Int_t | Bool_t | Unit_t -> t
+  | Number_t | Bool_t | Unit_t -> t
   | Tvar_t tvar ->
       let _, t' = List.find (fun (tvar', _) -> tvar == tvar') vs in
       t'
@@ -102,7 +102,7 @@ let instantiate (s : tipe_scheme) : tipe =
 (* returns all the guesses in a type *)
 let rec guesses_of_tipe (t : tipe) : tipe list =
   match t with
-  | Int_t | Bool_t | Unit_t | Tvar_t _ -> []
+  | Number_t | Bool_t | Unit_t | Tvar_t _ -> []
   | Fn_t (ts, tret) ->
       let ts_guesses = List.fold_left union [] (List.map guesses_of_tipe ts) in
       let tret_guesses = guesses_of_tipe tret in
@@ -117,7 +117,7 @@ let guesses_of (s : tipe_scheme) : tipe list =
 (* substitutes all guesses in `t` with their corresponding type variables *)
 let rec subst_guesses (gs_vs : (tipe * tvar) list) (t : tipe) : tipe =
   match t with
-  | Int_t | Bool_t | Unit_t | Tvar_t _ -> t
+  | Number_t | Bool_t | Unit_t | Tvar_t _ -> t
   | Fn_t (ts, tret) ->
       Fn_t (List.map (subst_guesses gs_vs) ts, subst_guesses gs_vs tret)
   | Guess_t tr -> (
@@ -149,7 +149,7 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
   let e', tr = e in
   let t =
     match e' with
-    | Int _ -> Int_t
+    | Number _ -> Number_t
     | Var x -> instantiate (lookup env x)
     | ExpSeq (_, _) -> raise (TypeError "TODO")
     | Binop (op, e1, e2) -> (
@@ -157,18 +157,18 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         let t2 = type_check_exp env e2 in
         match op with
         | Plus | Minus | Times | Div ->
-            if unify t1 Int_t then
-              if unify t2 Int_t then Int_t
-              else raise (TypeError (type_error_string t2 Int_t))
-            else raise (TypeError (type_error_string t1 Int_t))
+            if unify t1 Number_t then
+              if unify t2 Number_t then Number_t
+              else raise (TypeError (type_error_string t2 Number_t))
+            else raise (TypeError (type_error_string t1 Number_t))
         | Eq | Neq ->
             if unify t1 t2 then Bool_t
             else raise (TypeError (type_error_string t2 t1))
         | Lt | Lte | Gt | Gte ->
-            if unify t1 Int_t then
-              if unify t2 Int_t then Bool_t
-              else raise (TypeError (type_error_string t2 Int_t))
-            else raise (TypeError (type_error_string t1 Int_t))
+            if unify t1 Number_t then
+              if unify t2 Number_t then Bool_t
+              else raise (TypeError (type_error_string t2 Number_t))
+            else raise (TypeError (type_error_string t1 Number_t))
         | And | Or ->
             (* TODO: the resulting type should be `t1 | t2` *)
             if unify t1 t2 then t1
@@ -177,8 +177,8 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         let t = type_check_exp env e in
         match op with
         | UMinus ->
-            if unify t Int_t then Int_t
-            else raise (TypeError (type_error_string t Int_t))
+            if unify t Number_t then Number_t
+            else raise (TypeError (type_error_string t Number_t))
         | Not -> Bool_t)
     | Assign (e1, e2) ->
         let t1 = type_check_exp env e1 in

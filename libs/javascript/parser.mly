@@ -54,7 +54,7 @@ params:
 
 exp:
   ID { (Var $1, guess ()) }
-  | INT { (Int $1, guess ()) }
+  | INT { (Number (float_of_int $1), guess ()) }
   // | exp COMMA exp { ExpSeq($1, $3) }
   | unop exp %prec UNOP { (Unop ($1, $2), guess ()) }
   | exp binop exp { (Binop ($2, $1, $3), guess ()) }

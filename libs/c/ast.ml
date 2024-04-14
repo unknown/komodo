@@ -22,6 +22,7 @@ type unop = Not | Deref | AddrOf | Cast of typ
 
 type exp =
   | Int of int
+  | Double of float
   | String of string
   | Var of var
   | ExpSeq of exp * exp
@@ -76,6 +77,7 @@ let string_of_unop (u : unop) : string =
 let rec string_of_exp (e : exp) : string =
   match e with
   | Int i -> string_of_int i
+  | Double f -> string_of_float f
   | String s -> "\"" ^ s ^ "\""
   | Var x -> x
   | ExpSeq (e1, e2) -> string_of_exp e1 ^ ", " ^ string_of_exp e2

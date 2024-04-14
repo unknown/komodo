@@ -19,9 +19,9 @@ let dump (p : C.Ast.program) =
     "#include <stdio.h>\n\
      #include <stdlib.h>\n\n\
      union Value {\n\
-    \    int num;\n\
-    \    int* numPtr;\n\
+    \    double num;\n\
     \    struct Closure* closurePtr;\n\
+    \    union Value* var;\n\
      };\n\n\
      struct Variable {\n\
     \    union Value value;\n\
