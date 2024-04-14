@@ -123,7 +123,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
   | Assign (x, e) ->
       let t = new_temp () in
       let vx = exp2stmt x env true in
-      let store_vx : C.Ast.stmt = Exp (Assign (Var t, Var "result")) in
+      let store_vx : C.Ast.stmt = Exp (Assign (Var t, result)) in
       let ve = exp2stmt e env left in
       let assign_var : C.Ast.stmt =
         Exp (Assign (Unop (Deref, Binop (Dot, Var t, Var "var")), result))
@@ -172,9 +172,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
             in
 
             let v = exp2stmt e' env left in
-            let store_result : C.Ast.stmt =
-              Exp (Assign (Var t4, Var "result"))
-            in
+            let store_result : C.Ast.stmt = Exp (Assign (Var t4, result)) in
             let assign_var : C.Ast.stmt =
               Exp
                 (Assign
@@ -227,7 +225,7 @@ let rec exp2stmt (e : Javascript.Ast.exp) (env : env) (left : bool) : C.Ast.stmt
       let call_exp : C.Ast.exp =
         Call (Binop (Arrow, Var t1, Var "func"), [ Var t2 ])
       in
-      let store_result : C.Ast.stmt = Exp (Assign (Var "result", call_exp)) in
+      let store_result : C.Ast.stmt = Exp (Assign (result, call_exp)) in
       let call_with_args = compile_call (List.rev es) store_result in
 
       Decl
@@ -295,7 +293,7 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       stmt2stmt (Seq (Exp e1, While (e2, Seq (s, Exp e3)))) env
   | Return e ->
       let v = exp2stmt e env false in
-      let return : C.Ast.stmt = Return (Some (Var "result")) in
+      let return : C.Ast.stmt = Return (Some result) in
       seq_stmts [ v; return ]
   | Decl (_, x, e, s) ->
       let t1 = new_temp () in
@@ -306,7 +304,7 @@ and stmt2stmt (s : Javascript.Ast.stmt) (env : env) : C.Ast.stmt =
       in
 
       let v = exp2stmt e env false in
-      let store_result : C.Ast.stmt = Exp (Assign (Var t2, Var "result")) in
+      let store_result : C.Ast.stmt = Exp (Assign (Var t2, result)) in
 
       let assign_var : C.Ast.stmt =
         Exp
@@ -358,8 +356,7 @@ and stmt2fun (s : Javascript.Ast.stmt) (name : C.Ast.var) (env : env) : unit =
 
   let s' = stmt2stmt s env in
   let return : C.Ast.stmt =
-    if name = "main" then Return (Some (Int 0))
-    else Return (Some (Var "result"))
+    if name = "main" then Return (Some (Int 0)) else Return (Some result)
   in
   let body = compile_body (seq_stmts [ s'; return ]) in
 
