@@ -121,7 +121,7 @@ let rec subst_guesses (gs_vs : (tipe * tvar) list) (t : tipe) : tipe =
   | Fn_t (ts, tret) ->
       Fn_t (List.map (subst_guesses gs_vs) ts, subst_guesses gs_vs tret)
   | Guess_t tr -> (
-      match List.find_opt (fun (t', _) -> unify t t') gs_vs with
+      match List.find_opt (fun (t', _) -> t == t') gs_vs with
       | Some (_, tvar) -> Tvar_t tvar
       | None -> (
           match !tr with
