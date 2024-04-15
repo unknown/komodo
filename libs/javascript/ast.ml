@@ -29,7 +29,7 @@ type binop =
 
 type unop = UMinus | Not
 
-type funcsig = { name : var option; args : var list; body : stmt }
+type funcsig = { name : var; args : var list; body : stmt }
 
 and rexp =
   | Number of float
@@ -132,9 +132,8 @@ let rec string_of_exp ((e, _, _) : exp) (level : int) : string =
   | Assign (x, e) -> string_of_exp x level ^ " = " ^ string_of_exp e level
   | Fn f ->
       let tabs = String.make (level * 2) ' ' in
-      let name = match f.name with Some x -> " " ^ x | None -> "" in
       let args = String.concat ", " f.args in
-      "function" ^ name ^ "(" ^ args ^ ") {\n"
+      "function" ^ f.name ^ "(" ^ args ^ ") {\n"
       ^ string_of_stmt f.body (level + 1)
       ^ tabs ^ "}"
   | Call (e, es) ->

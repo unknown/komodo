@@ -128,13 +128,7 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
       let t1 = new_temp () in
       let t2 = new_temp () in
       let env' = List.fold_right (fun arg env -> arg :: env) f.args env in
-      let _ =
-        match f.name with
-        | Some _ ->
-            (* TODO: handle recursive functions *)
-            stmt2fun f.body t1 env'
-        | None -> stmt2fun f.body t1 env'
-      in
+      let _ = stmt2fun f.body t1 (f.name :: env') in
       let malloc_closure : C.stmt =
         Exp (Assign (Var t2, malloc "struct Closure"))
       in
@@ -208,7 +202,7 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
         Call (Binop (Arrow, Var t1, Var "func"), [ Var t2 ])
       in
       let store_result : C.stmt = Exp (Assign (result, call_exp)) in
-      let call_with_args = compile_call (List.rev es) store_result in
+      let call_with_args = compile_call (List.rev (e :: es)) store_result in
 
       Decl
         ( ("struct Closure*", t1),

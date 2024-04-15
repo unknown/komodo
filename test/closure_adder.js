@@ -1,6 +1,6 @@
-const counter = function (initial) {
+const counter = function counter(initial) {
   let count = initial;
-  return function (x) {
+  return function increment(x) {
     count = count + x;
     return count;
   };

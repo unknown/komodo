@@ -60,10 +60,8 @@ exp:
   | exp binop exp { (Binop ($2, $1, $3), guess (), $startpos) }
   | exp EQUAL exp { (Assign ($1, $3), guess (), $startpos) }
   | LPAREN exp RPAREN { $2 }
-  | FUNCTION LPAREN RPAREN LBRACE stmts RBRACE { (Fn { name = None; args = []; body = $5 }, guess (), $startpos) }
-  | FUNCTION LPAREN params RPAREN LBRACE stmts RBRACE { (Fn { name = None; args = $3; body = $6 }, guess (), $startpos) }
-  | FUNCTION ID LPAREN RPAREN LBRACE stmts RBRACE { (Fn { name = Some($2); args = []; body = $6 }, guess (), $startpos) }
-  | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { (Fn { name = Some($2); args = $4; body = $7 }, guess (), $startpos) }
+  | FUNCTION ID LPAREN RPAREN LBRACE stmts RBRACE { (Fn { name = $2; args = []; body = $6 }, guess (), $startpos) }
+  | FUNCTION ID LPAREN params RPAREN LBRACE stmts RBRACE { (Fn { name = $2; args = $4; body = $7 }, guess (), $startpos) }
   | exp LPAREN RPAREN { (Call($1, []), guess (), $startpos) }
   | exp LPAREN exps RPAREN { (Call($1, $3), guess (), $startpos) }
   | print { ($1, guess (), $startpos) }

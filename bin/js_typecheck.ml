@@ -189,7 +189,7 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         let t1 = type_check_exp env e1 in
         let t2 = type_check_exp env e2 in
         if unify t1 t2 then t1 else type_error (type_error_string t2 t1) e2
-    | Fn f -> (
+    | Fn f ->
         let ts = List.map (fun _ -> guess ()) f.args in
         let env' =
           List.fold_left2
@@ -197,16 +197,11 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
             env f.args ts
         in
         (* TODO: `tb` should be a union of all the returns *)
-        match f.name with
-        | Some x ->
-            let g = guess () in
-            let env' = extend env' x (Forall ([], Fn_t (ts, g))) in
-            let tb = type_check_stmt env' f.body in
-            if unify g tb then Fn_t (ts, tb)
-            else type_error (type_error_string g tb) e
-        | None ->
-            let tb = type_check_stmt env' f.body in
-            Fn_t (ts, tb))
+        let g = guess () in
+        let env' = extend env' f.name (Forall ([], Fn_t (ts, g))) in
+        let tb = type_check_stmt env' f.body in
+        if unify g tb then Fn_t (ts, tb)
+        else type_error (type_error_string g tb) e
     | Call (e', es) ->
         let t = type_check_exp env e' in
         let ts = List.map (type_check_exp env) es in
