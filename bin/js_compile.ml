@@ -153,17 +153,22 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
             let t3 = new_temp () in
             let t4 = new_temp () in
 
+            let v = exp2stmt e' env left in
+            let malloc_value : C.stmt =
+              Exp (Assign (Var t4, malloc "union Value"))
+            in
+            let store_result : C.stmt =
+              Exp (Assign (Unop (Deref, Var t4), result))
+            in
+
             let malloc_var : C.stmt =
               Exp (Assign (Var t3, malloc "struct Variable"))
             in
-
-            let v = exp2stmt e' env left in
-            let store_result : C.stmt = Exp (Assign (Var t4, result)) in
             let assign_var : C.stmt =
               Exp
                 (Assign
                    ( Binop (Dot, Binop (Arrow, Var t3, Var "value"), Var "var"),
-                     Unop (AddrOf, Var t4) ))
+                     Var t4 ))
             in
             let store_next : C.stmt =
               Exp (Assign (Binop (Arrow, Var t3, Var "next"), Var t2))
@@ -172,25 +177,22 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
 
             let rest : C.stmt = compile_call tl s in
 
-            (* TODO: this segfaults if the call returns a closure referencing this var *)
-            let free_var : C.stmt = free (Var t3) in
-
             Decl
               ( ("struct Variable*", t3),
                 Some null,
                 Decl
-                  ( ("union Value", t4),
-                    None,
+                  ( ("union Value*", t4),
+                    Some null,
                     seq_stmts
                       [
-                        malloc_var;
                         v;
+                        malloc_value;
                         store_result;
+                        malloc_var;
                         assign_var;
                         store_next;
                         store_head;
                         rest;
-                        free_var;
                       ] ) )
       in
       let v = exp2stmt e env left in
@@ -272,19 +274,17 @@ and stmt2stmt (s : Js.stmt) (env : env) : C.stmt =
       let t1 = new_temp () in
       let t2 = new_temp () in
 
+      let v = exp2stmt e env false in
+      let malloc_value : C.stmt = Exp (Assign (Var t2, malloc "union Value")) in
+      let store_result : C.stmt = Exp (Assign (Unop (Deref, Var t2), result)) in
+
       let malloc_var : C.stmt =
         Exp (Assign (Var t1, malloc "struct Variable"))
       in
-
-      let v = exp2stmt e env false in
-      (* TODO: ponder deeply whether it is safe to store this on the stack *)
-      let store_result : C.stmt = Exp (Assign (Var t2, result)) in
-
       let assign_var : C.stmt =
         Exp
           (Assign
-             ( Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "var"),
-               Unop (AddrOf, Var t2) ))
+             (Binop (Dot, Binop (Arrow, Var t1, Var "value"), Var "var"), Var t2))
       in
       let store_next : C.stmt =
         Exp (Assign (Binop (Arrow, Var t1, Var "next"), Var "env"))
@@ -297,13 +297,14 @@ and stmt2stmt (s : Js.stmt) (env : env) : C.stmt =
         ( ("struct Variable*", t1),
           Some null,
           Decl
-            ( ("union Value", t2),
-              None,
+            ( ("union Value*", t2),
+              Some null,
               seq_stmts
                 [
-                  malloc_var;
                   v;
+                  malloc_value;
                   store_result;
+                  malloc_var;
                   assign_var;
                   store_next;
                   store_head;
