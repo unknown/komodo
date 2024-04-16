@@ -34,3 +34,6 @@ _opam/
 ._*
 .DS_Store
 Thumbs.db
+
+# output folder
+out/

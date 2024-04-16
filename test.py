@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import subprocess
 import time
@@ -66,8 +67,11 @@ def run_node(js_file_path):
 def test_js(js_file_path):
     print(f"Testing {js_file_path}")
 
-    c_file_path = "test/test.c"
-    output_file_path = "test/test.out"
+    c_file_path = Path("out/test.c")
+    c_file_path.parent.mkdir(exist_ok=True, parents=True)
+
+    output_file_path = Path("out/test.out")
+    output_file_path.parent.mkdir(exist_ok=True, parents=True)
 
     compile_js(js_file_path, c_file_path)
     compile_c(c_file_path, output_file_path)
