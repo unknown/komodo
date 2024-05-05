@@ -12,7 +12,8 @@ let guess () = ref (Guess_t (ref None))
 /* terminals */
 %token <int> INT
 %token <string> ID
-%token SEMI LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COMMA EQUAL
+%token NUMBER_T BOOL_T
+%token SEMI LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COMMA EQUAL COLON DOT
 %token PLUS MINUS TIMES DIV AND OR
 %token BANG
 %token RETURN IF ELSE WHILE FOR
@@ -55,8 +56,10 @@ params:
 exp:
   ID { (Var $1, guess (), $startpos) }
   | INT { (Number (float_of_int $1), guess (), $startpos) }
+  | obj { $1 }
   // | exp COMMA exp { ExpSeq($1, $3) }
   | unop exp %prec UNOP { (Unop ($1, $2), guess (), $startpos) }
+  | exp DOT ID { (Unop (ObjProp $3, $1), guess (), $startpos) }
   | exp binop exp { (Binop ($2, $1, $3), guess (), $startpos) }
   | exp EQUAL exp { (Assign ($1, $3), guess (), $startpos) }
   | LPAREN exp RPAREN { $2 }
@@ -65,6 +68,17 @@ exp:
   | exp LPAREN RPAREN { (Call($1, []), guess (), $startpos) }
   | exp LPAREN exps RPAREN { (Call($1, $3), guess (), $startpos) }
   | print { ($1, guess (), $startpos) }
+
+obj:
+  LBRACE RBRACE { (Object [], guess (), $startpos) }
+  | LBRACE props RBRACE { (Object $2, guess (), $startpos) }
+
+prop:
+  ID COLON exp { ($1, $3) }
+
+props:
+  prop { [$1] }
+  | prop COMMA props { $1::$3 }
 
 exps:
   exp { [$1] }

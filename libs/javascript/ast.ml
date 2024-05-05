@@ -5,6 +5,7 @@ type pos = Lexing.position
 
 type tipe =
   | Number_t
+  | Object_t of (var * tipe) list
   | Bool_t
   | Unit_t
   | Tvar_t of tvar
@@ -27,12 +28,13 @@ type binop =
   | And
   | Or
 
-type unop = UMinus | Not
+type unop = UMinus | Not | ObjProp of var
 
 type funcsig = { name : var; args : var list; body : stmt }
 
 and rexp =
   | Number of float
+  | Object of (var * exp) list
   | Var of var
   | ExpSeq of exp * exp
   | Binop of binop * exp * exp
@@ -87,6 +89,12 @@ let string_of_pos (pos : pos) =
 let rec string_of_tipe (t : tipe) : string =
   match t with
   | Number_t -> "number"
+  | Object_t ps ->
+      let ps_str =
+        String.concat " "
+          (List.map (fun (x, t) -> x ^ ": " ^ string_of_tipe t ^ ";") ps)
+      in
+      "{ " ^ ps_str ^ " }"
   | Bool_t -> "boolean"
   | Unit_t -> "void"
   | Tvar_t tvar -> "'" ^ tvar
@@ -115,7 +123,7 @@ let string_of_binop (op : binop) : string =
   | Or -> "||"
 
 let string_of_unop (op : unop) : string =
-  match op with UMinus -> "-" | Not -> "!"
+  match op with UMinus -> "-" | Not -> "!" | ObjProp prop -> "." ^ prop
 
 let string_of_mut (m : mut) : string =
   match m with Let -> "let" | Const -> "const"
@@ -123,12 +131,26 @@ let string_of_mut (m : mut) : string =
 let rec string_of_exp ((e, _, _) : exp) (level : int) : string =
   match e with
   | Number n -> string_of_float n
+  | Object ps ->
+      let tabs = String.make (level * 2) ' ' in
+      let p_tabs = String.make ((level + 1) * 2) ' ' in
+      let ps_str =
+        String.concat "\n"
+          (List.map
+             (fun (x, e) ->
+               p_tabs ^ x ^ ": " ^ string_of_exp e (level + 1) ^ ";")
+             ps)
+      in
+      "{\n" ^ ps_str ^ "\n" ^ tabs ^ "}"
   | Var x -> x
   | ExpSeq (e1, e2) -> string_of_exp e1 level ^ ", " ^ string_of_exp e2 level
   | Binop (op, e1, e2) ->
       "(" ^ string_of_exp e1 level ^ " " ^ string_of_binop op ^ " "
       ^ string_of_exp e2 level ^ ")"
-  | Unop (op, e) -> string_of_unop op ^ string_of_exp e level
+  | Unop (op, e) -> (
+      match op with
+      | ObjProp _ -> string_of_exp e level ^ string_of_unop op
+      | _ -> string_of_unop op ^ string_of_exp e level)
   | Assign (x, e) -> string_of_exp x level ^ " = " ^ string_of_exp e level
   | Fn f ->
       let tabs = String.make (level * 2) ' ' in

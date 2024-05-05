@@ -23,6 +23,8 @@ let id = alpha (alpha|digit|'_')*
 
 (* rules section *)
 rule lexer = parse
+  | "number" { NUMBER_T }
+  | "boolean" { BOOL_T }
   | ';' { SEMI }
   | '(' { LPAREN }
   | ')' { RPAREN }
@@ -32,6 +34,8 @@ rule lexer = parse
   | '>' { RANGLE }
   | ',' { COMMA }
   | '=' { EQUAL }
+  | ':' { COLON }
+  | '.' { DOT }
   | '+' { PLUS }
   | '-' { MINUS }
   | '*' { TIMES }

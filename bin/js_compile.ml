@@ -48,7 +48,7 @@ let result_closure_ptr : C.exp = Binop (Dot, result, Var "closurePtr")
 let result_var : C.exp = Binop (Dot, result, Var "var")
 let null : C.exp = Var "NULL"
 
-(* sequence statements tigetger to a single statement *)
+(* sequence statements together to a single statement *)
 let seq_stmts (stmts : C.stmt list) : C.stmt =
   match stmts with
   | [] -> raise (Compile_error "Empty statements list")
@@ -66,8 +66,7 @@ let binop2binop (b : Js.binop) : C.binop =
   | Lte -> Lte
   | Gt -> Gt
   | Gte -> Gte
-  | And -> And
-  | Or -> Or
+  | And | Or -> raise (Compile_error "No direct conversion for binop")
 
 let unop2unop (u : Js.unop) : C.unop =
   match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
@@ -76,6 +75,7 @@ let unop2unop (u : Js.unop) : C.unop =
 let rec flatten_guesses (t : Js.tipe) : Js.tipe =
   match t with
   | Number_t | Bool_t | Unit_t | Tvar_t _ -> t
+  | Object_t ps -> Object_t (List.map (fun (x, p) -> (x, flatten_guesses p)) ps)
   | Fn_t (ts, tret) -> Fn_t (List.map flatten_guesses ts, flatten_guesses tret)
   | Guess_t tr -> ( match !tr with Some t' -> flatten_guesses t' | None -> t)
 
@@ -85,6 +85,7 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
   let e', _, _ = e in
   match e' with
   | Number n -> Exp (Assign (result_num, Double n))
+  | Object _ -> raise (Compile_error "Unsupported objects")
   | Var x ->
       let index = lookup_arg env x in
       let var = get_arg index in

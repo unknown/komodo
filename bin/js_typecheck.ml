@@ -31,6 +31,7 @@ let fresh_var () : var =
 let rec occurs (tr : tipe option ref) (t : tipe) : bool =
   match t with
   | Number_t | Bool_t | Unit_t | Tvar_t _ -> false
+  | Object_t ps -> List.exists (fun (_, t') -> occurs tr t') ps
   | Fn_t (ts, tret) -> List.exists (occurs tr) ts || occurs tr tret
   | Guess_t tr' -> (
       if tr == tr' then true
@@ -84,6 +85,7 @@ let rec unify (t1 : tipe) (t2 : tipe) : bool =
 let rec substitute (vs : (tvar * tipe) list) (t : tipe) : tipe =
   match t with
   | Number_t | Bool_t | Unit_t -> t
+  | Object_t ps -> Object_t (List.map (fun (x, t') -> (x, substitute vs t')) ps)
   | Tvar_t tvar ->
       let _, t' = List.find (fun (tvar', _) -> tvar == tvar') vs in
       t'
@@ -106,6 +108,8 @@ let instantiate (s : tipe_scheme) : tipe =
 let rec guesses_of_tipe (t : tipe) : tipe list =
   match t with
   | Number_t | Bool_t | Unit_t | Tvar_t _ -> []
+  | Object_t ps ->
+      List.fold_left union [] (List.map (fun (_, t') -> guesses_of_tipe t') ps)
   | Fn_t (ts, tret) ->
       let ts_guesses = List.fold_left union [] (List.map guesses_of_tipe ts) in
       let tret_guesses = guesses_of_tipe tret in
@@ -121,6 +125,8 @@ let guesses_of (s : tipe_scheme) : tipe list =
 let rec subst_guesses (gs_vs : (tipe * tvar) list) (t : tipe) : tipe =
   match t with
   | Number_t | Bool_t | Unit_t | Tvar_t _ -> t
+  | Object_t ps ->
+      Object_t (List.map (fun (x, t') -> (x, subst_guesses gs_vs t')) ps)
   | Fn_t (ts, tret) ->
       Fn_t (List.map (subst_guesses gs_vs) ts, subst_guesses gs_vs tret)
   | Guess_t tr -> (
@@ -153,6 +159,9 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
   let t =
     match e' with
     | Number _ -> Number_t
+    | Object ps ->
+        let ps_t = List.map (fun (x, e'') -> (x, type_check_exp env e'')) ps in
+        Object_t ps_t
     | Var x -> (
         match lookup env x with
         | Some s -> instantiate s
@@ -184,7 +193,11 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         | UMinus ->
             if unify t Number_t then Number_t
             else type_error (type_error_string t Number_t) e
-        | Not -> Bool_t)
+        | Not -> Bool_t
+        | ObjProp prop -> (
+            match t with
+            | Object_t ps -> ps |> List.assoc prop
+            | _ -> type_error "Not an object" e))
     | Assign (e1, e2) ->
         let t1 = type_check_exp env e1 in
         let t2 = type_check_exp env e2 in
