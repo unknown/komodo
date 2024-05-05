@@ -196,7 +196,10 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
         | Not -> Bool_t
         | ObjProp prop -> (
             match t with
-            | Object_t ps -> ps |> List.assoc prop
+            | Object_t ps -> (
+                match List.assoc_opt prop ps with
+                | Some t -> t
+                | None -> type_error ("Unknown property " ^ prop) e)
             | _ -> type_error "Not an object" e))
     | Assign (e1, e2) ->
         let t1 = type_check_exp env e1 in

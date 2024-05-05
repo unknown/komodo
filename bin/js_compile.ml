@@ -66,7 +66,10 @@ let binop2binop (b : Js.binop) : C.binop =
   | Lte -> Lte
   | Gt -> Gt
   | Gte -> Gte
-  | And | Or -> raise (Compile_error "No direct conversion for binop")
+  | And | Or ->
+      raise
+        (Compile_error
+           "JavaScript && and || have different semantics than C && and ||")
 
 let unop2unop (u : Js.unop) : C.unop =
   match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
