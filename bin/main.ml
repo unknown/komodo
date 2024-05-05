@@ -23,28 +23,12 @@ let parse_file () : mode * Javascript.Ast.program =
 let type_check_prog (p : Javascript.Ast.program) : Javascript.Ast.tipe =
   Js_typecheck.type_check_program p
 
-let compile_prog (p : Javascript.Ast.program) : C.Ast.program =
+let compile_prog (p : Javascript.Ast.program) : Js_compile.program =
   let _ = type_check_prog p in
   Js_compile.compile_program p
 
-let dump_program (p : C.Ast.program) =
-  let prog_str =
-    "#include <stdio.h>\n\
-     #include <stdlib.h>\n\n\
-     union Value {\n\
-    \    double num;\n\
-    \    struct Closure* closurePtr;\n\
-    \    union Value* var;\n\
-     };\n\n\
-     struct Variable {\n\
-    \    union Value value;\n\
-    \    struct Variable* next;\n\
-     };\n\n\
-     struct Closure {\n\
-    \  union Value (*func)(struct Variable* env);\n\
-    \  struct Variable* env;\n\
-     };\n\n" ^ C.Ast.string_of_program p
-  in
+let dump_program (p : Js_compile.program) =
+  let prog_str = Js_compile.string_of_program p in
   print_string prog_str
 
 let () =

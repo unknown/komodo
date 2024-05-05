@@ -195,6 +195,7 @@ let rec type_check_exp (env : env) (e : exp) : tipe =
             else type_error (type_error_string t Number_t) e
         | Not -> Bool_t
         | ObjProp prop -> (
+            (* TODO: unify the type instead of matching on it *)
             match t with
             | Object_t ps -> (
                 match List.assoc_opt prop ps with

@@ -3,7 +3,10 @@ module Js = Javascript.Ast
 
 exception Compile_error of string
 
-let program : C.program ref = ref []
+type c_struct = { name : C.var; fields : C.var list }
+type program = { structs : (Js.tipe * c_struct) list; body : C.program }
+
+let program : program ref = ref { structs = []; body = [] }
 
 (* generate fresh labels *)
 let label_counter = ref 0
@@ -46,6 +49,7 @@ let result : C.exp = Var "result"
 let result_num : C.exp = Binop (Dot, result, Var "num")
 let result_closure_ptr : C.exp = Binop (Dot, result, Var "closurePtr")
 let result_var : C.exp = Binop (Dot, result, Var "var")
+let result_obj : C.exp = Binop (Dot, result, Var "obj")
 let null : C.exp = Var "NULL"
 
 (* sequence statements together to a single statement *)
@@ -72,7 +76,10 @@ let binop2binop (b : Js.binop) : C.binop =
            "JavaScript && and || have different semantics than C && and ||")
 
 let unop2unop (u : Js.unop) : C.unop =
-  match u with Not -> Not | _ -> raise (Compile_error "Unsupported unop")
+  match u with
+  | UMinus -> raise (Compile_error "UMinus is unsupported")
+  | Not -> Not
+  | ObjProp _ -> raise (Compile_error "Implemented elsewhere")
 
 (* replaces all guesses in `t` with their guessed types if they exist *)
 let rec flatten_guesses (t : Js.tipe) : Js.tipe =
@@ -85,10 +92,42 @@ let rec flatten_guesses (t : Js.tipe) : Js.tipe =
 let tipe_of ((_, tr, _) : Js.exp) : Js.tipe = flatten_guesses !tr
 
 let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
-  let e', _, _ = e in
+  let e', tr, _ = e in
   match e' with
   | Number n -> Exp (Assign (result_num, Double n))
-  | Object _ -> raise (Compile_error "Unsupported objects")
+  | Object ps ->
+      let c_struct =
+        match List.assoc_opt !tr !program.structs with
+        | Some c -> c
+        | None ->
+            let c_struct = { name = new_temp (); fields = List.map fst ps } in
+            program :=
+              { !program with structs = (!tr, c_struct) :: !program.structs };
+            c_struct
+      in
+
+      let t1 = new_temp () in
+      let malloc_obj : C.stmt =
+        Exp (Assign (Var t1, malloc ("struct " ^ c_struct.name)))
+      in
+
+      let assign_props : C.stmt =
+        List.fold_left
+          (fun acc (x, e) ->
+            let v = exp2stmt e env left in
+            let assign_var : C.stmt =
+              Exp (Assign (Binop (Arrow, Var t1, Var x), result))
+            in
+            seq_stmts [ acc; v; assign_var ])
+          C.skip ps
+      in
+
+      let store_result : C.stmt = Exp (Assign (result_obj, Var t1)) in
+
+      Decl
+        ( ("struct " ^ c_struct.name ^ "*", t1),
+          None,
+          seq_stmts [ malloc_obj; assign_props; store_result ] )
   | Var x ->
       let index = lookup_arg env x in
       let var = get_arg index in
@@ -115,7 +154,22 @@ let rec exp2stmt (e : Js.exp) (env : env) (left : bool) : C.stmt =
   | Unop (op, e) ->
       let v = exp2stmt e env left in
       let store_result : C.stmt =
-        Exp (Assign (result_num, Unop (unop2unop op, result_num)))
+        match op with
+        | UMinus | Not ->
+            Exp (Assign (result_num, Unop (unop2unop op, result_num)))
+        | ObjProp prop -> (
+            let _, tr', _ = e in
+            match List.assoc_opt !tr' !program.structs with
+            | Some c_struct ->
+                Exp
+                  (Assign
+                     ( result,
+                       Binop
+                         ( Arrow,
+                           Unop
+                             (Cast ("struct " ^ c_struct.name ^ "*"), result_obj),
+                           Var prop ) ))
+            | None -> raise (Compile_error "Unknown property"))
       in
       seq_stmts [ v; store_result ]
   | Assign (x, e) ->
@@ -335,9 +389,40 @@ and stmt2fun (s : Js.stmt) (name : C.var) (env : env) : unit =
   let body = compile_body (seq_stmts [ s'; return ]) in
 
   let f : C.func = Fn { def; args; body } in
-  program := f :: !program
+  program := { !program with body = f :: !program.body }
 
-let compile_program (p : Js.program) : C.program =
+let compile_program (p : Js.program) : program =
   let env = [] in
   let _ = stmt2fun p "main" env in
-  List.rev !program
+  { !program with body = List.rev !program.body }
+
+let string_of_c_struct (c_struct : c_struct) : string =
+  let fields =
+    String.concat "\n"
+      (List.map (fun x -> "    union Value " ^ x ^ ";") c_struct.fields)
+  in
+  "struct " ^ c_struct.name ^ " {\n" ^ fields ^ "\n};"
+
+let string_of_program (p : program) : string =
+  let prog_str =
+    "#include <stdio.h>\n\
+     #include <stdlib.h>\n\n\
+     union Value {\n\
+    \    double num;\n\
+    \    struct Closure* closurePtr;\n\
+    \    union Value* var;\n\
+    \    void* obj;\n\
+     };\n\n\
+     struct Variable {\n\
+    \    union Value value;\n\
+    \    struct Variable* next;\n\
+     };\n\n\
+     struct Closure {\n\
+    \  union Value (*func)(struct Variable* env);\n\
+    \  struct Variable* env;\n\
+     };\n\n"
+    ^ String.concat "\n\n"
+        (p.structs |> List.map snd |> List.map string_of_c_struct)
+    ^ "\n\n" ^ C.string_of_program p.body
+  in
+  prog_str
